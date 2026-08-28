@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>10.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ABB.Analyze.VisualStudio</AssemblyName>
+    <RootNamespace>ABB.Analyze.VisualStudio</RootNamespace>
+    <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="Quack\quack.exe" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Quack\quack.exe" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectCapability Include="CreateVsixContainer" />
+    <Reference Include="System.Design" />
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MessagePack" Version="3.1.8" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.VisualStudio.Imaging" Version="17.14.40264" />
+    <PackageReference Include="Microsoft.VisualStudio.ImageCatalog" Version="17.14.40260" />
+  </ItemGroup>
+  <ItemGroup>
+    <VSCTCompile Include="ABBAnalyze.vsct"><ResourceName>Menus.ctmenu</ResourceName></VSCTCompile>
+    <None Update="source.extension.vsixmanifest"><CopyToOutputDirectory>Never</CopyToOutputDirectory></None>
+  </ItemGroup>
+</Project>

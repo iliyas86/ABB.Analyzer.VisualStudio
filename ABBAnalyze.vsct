@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Commands package="guidPackage"><Groups><Group guid="guidCommandSet" id="CommandGroup" priority="0x0600"><Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS"/></Group></Groups><Buttons>
+    <Button guid="guidCommandSet" id="RunLocalCommandId" priority="0x0100" type="Button"><Parent guid="guidCommandSet" id="CommandGroup"/><Strings><ButtonText>Run QUACK Local Check</ButtonText></Strings></Button>
+    <Button guid="guidCommandSet" id="AnalyzeCommandId" priority="0x0110" type="Button"><Parent guid="guidCommandSet" id="CommandGroup"/><Strings><ButtonText>Analyzer Changes with Copilot</ButtonText></Strings></Button>
+    <Button guid="guidCommandSet" id="ShowWindowCommandId" priority="0x0120" type="Button"><Parent guid="guidCommandSet" id="CommandGroup"/><Strings><ButtonText>Open ABB Analyze Window</ButtonText></Strings></Button>
+  </Buttons></Commands>
+  <Symbols><GuidSymbol name="guidPackage" value="{A03F44E4-8068-4C4A-A502-406F6C80F8F1}"/><GuidSymbol name="guidCommandSet" value="{286C58DC-C5BC-4C10-AEB3-E44AECA78D16}"><IDSymbol name="CommandGroup" value="0x1020"/><IDSymbol name="RunLocalCommandId" value="0x0100"/><IDSymbol name="AnalyzeCommandId" value="0x0101"/><IDSymbol name="ShowWindowCommandId" value="0x0102"/></GuidSymbol><GuidSymbol name="guidSHLMainMenu" value="{D309F791-903F-11D0-9EFC-00A0C911004F}"><IDSymbol name="IDM_VS_MENU_TOOLS" value="0x0085"/></GuidSymbol></Symbols>
+</CommandTable>
