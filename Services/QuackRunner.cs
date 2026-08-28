@@ -109,9 +109,6 @@ internal static class QuackRunner
             FindExecutable(
                 workingDirectory);
 
-        System.Windows.MessageBox.Show(
-    executable);
-
         var startInfo =
             new ProcessStartInfo
             {
