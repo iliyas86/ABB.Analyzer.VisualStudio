@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>disable</Nullable>
+    <LangVersion>10.0</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+  </ItemGroup>
+
+  <!--
+    Deliberately NOT a ProjectReference: the main project is a VSIX targeting the
+    Visual Studio SDK, whose package graph requires an internal feed that isn't
+    available in all build environments (including this one). Instead, link the
+    specific, VS-SDK-free source files that contain the logic under test.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Services\GitCommandService.cs" Link="Sources\GitCommandService.cs" />
+    <Compile Include="..\Services\TestFileStagingService.cs" Link="Sources\TestFileStagingService.cs" />
+    <Compile Include="..\Services\ExistingTestFileLocator.cs" Link="Sources\ExistingTestFileLocator.cs" />
+    <Compile Include="..\Services\TestCommandService.cs" Link="Sources\TestCommandService.cs" />
+    <Compile Include="..\Services\JsonServices.cs" Link="Sources\JsonServices.cs" />
+    <Compile Include="..\Models\QuackModels.cs" Link="Sources\QuackModels.cs" />
+    <Compile Include="..\Models\DashboardModel.cs" Link="Sources\DashboardModel.cs" />
+  </ItemGroup>
+
+</Project>

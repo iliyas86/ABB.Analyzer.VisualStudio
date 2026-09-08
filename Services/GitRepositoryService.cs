@@ -1,12 +1,16 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using EnvDTE;
 using Microsoft.VisualStudio.Shell;
-using DiagnosticProcess = System.Diagnostics.Process;
 
 namespace ABB.Analyze.VisualStudio.Services;
 
+/// <summary>
+/// Visual Studio-facing entry point for git operations. Repository discovery relies
+/// on EnvDTE/ThreadHelper; the actual git command shelling is delegated to
+/// <see cref="GitCommandService"/>, which has no VS SDK dependency and is directly
+/// unit-testable.
+/// </summary>
 internal static class GitRepositoryService
 {
     public static string GetCurrentRepository()
@@ -15,19 +19,18 @@ internal static class GitRepositoryService
         var dte = Package.GetGlobalService(typeof(DTE)) as DTE;
         string file = dte?.Solution?.FullName ?? throw new InvalidOperationException("Open a Git-based solution first.");
         string directory = Path.GetDirectoryName(file) ?? throw new InvalidOperationException("Solution directory unavailable.");
-        return Git(directory, "rev-parse --show-toplevel") ?? throw new InvalidOperationException("Solution is not in a Git repository.");
+        return GitCommandService.GetRepositoryRoot(directory) ?? throw new InvalidOperationException("Solution is not in a Git repository.");
     }
-    public static string GetCurrentBranch(string repository) => Git(repository, "branch --show-current") ?? "detached";
-    private static string? Git(string directory, string arguments)
-    {
-        try
-        {
-            var info = new ProcessStartInfo("git.exe", arguments) { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
-            using DiagnosticProcess? process = DiagnosticProcess.Start(info);
-            if (process == null) return null;
-            string output = process.StandardOutput.ReadToEnd().Trim();
-            return process.WaitForExit(5000) && process.ExitCode == 0 ? output : null;
-        }
-        catch { return null; }
-    }
+
+    public static string GetCurrentBranch(string repository) => GitCommandService.GetCurrentBranch(repository);
+
+    public static string[] GetStagedFiles(string repository) => GitCommandService.GetStagedFiles(repository);
+
+    public static string[] GetModifiedFiles(string repository) => GitCommandService.GetModifiedFiles(repository);
+
+    public static string[] GetAllTrackedFiles(string repository) => GitCommandService.GetAllTrackedFiles(repository);
+
+    public static string[] GetUntrackedFiles(string repository) => GitCommandService.GetUntrackedFiles(repository);
+
+    public static bool StageFile(string repository, string relativePath) => GitCommandService.StageFile(repository, relativePath);
 }

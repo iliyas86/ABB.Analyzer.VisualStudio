@@ -17,7 +17,7 @@ internal static class JsonServices
             ?? throw new InvalidDataException("QUACK returned empty JSON."));
     }
 
-    public static DashboardModel Build(QuackCheckResult result, string branch, string rawJson)
+    public static DashboardModel Build(QuackCheckResult result, string branch, string rawJson, string repository = null)
     {
         var model = new DashboardModel
         {
@@ -52,7 +52,7 @@ internal static class JsonServices
                 TestOrCommand = command,
                 Status = "ready_to_run",
                 Recommendation = "Run the AI-suggested test."
-            });
+            }, repository);
         }
         else if (!string.IsNullOrWhiteSpace(result.AiError))
         {
@@ -77,7 +77,7 @@ internal static class JsonServices
 
         foreach (QuackTestGuidance item in result.TestGuidance)
         {
-            AddTest(model, item);
+            AddTest(model, item, repository);
             AddUnique(model.AffectedFiles, item.SourceFile);
         }
 
@@ -89,7 +89,8 @@ internal static class JsonServices
 
     private static void AddTest(
     DashboardModel model,
-    QuackTestGuidance item)
+    QuackTestGuidance item,
+    string repository = null)
     {
         string normalizedValue =
             TestCommandService.NormalizeCommand(
@@ -105,6 +106,7 @@ internal static class JsonServices
                 normalizedValue);
 
         string effectiveStatus;
+        string recommendation = item.Recommendation;
 
         if (isRunnableCommand)
         {
@@ -118,6 +120,43 @@ internal static class JsonServices
         {
             effectiveStatus =
                 "ai_suggested_test";
+        }
+        else if (string.Equals(
+                     item.Status,
+                     "no_tests_found",
+                     StringComparison.OrdinalIgnoreCase) &&
+                 !string.IsNullOrWhiteSpace(repository) &&
+                 TryFindExistingTestFile(
+                     repository,
+                     item.SourceFile,
+                     out string existingTestFile))
+        {
+            // QUACK only analyzes staged diffs, so an existing but unmodified test
+            // file is invisible to it. Independently verify test-file existence by
+            // naming convention to avoid a false "Coverage gap".
+            effectiveStatus =
+                "existing_test_found";
+
+            recommendation =
+                $"An existing test file was found: {existingTestFile}. " +
+                "QUACK only analyzes staged diffs, so this unchanged test file was not detected automatically.";
+
+            // QUACK never populated TestOrCommand for this row (it never saw the
+            // test file), so synthesize a runnable command from the located file
+            // instead of leaving the Command column blank.
+            string synthesizedCommand =
+                ExistingTestFileLocator.BuildTestCommand(
+                    repository,
+                    existingTestFile);
+
+            if (!string.IsNullOrWhiteSpace(synthesizedCommand))
+            {
+                normalizedValue =
+                    TestCommandService.NormalizeCommand(synthesizedCommand);
+
+                isRunnableCommand =
+                    TestCommandService.IsApproved(normalizedValue);
+            }
         }
         else
         {
@@ -145,7 +184,7 @@ internal static class JsonServices
                         effectiveStatus),
 
                 Recommendation =
-                    item.Recommendation,
+                    recommendation,
 
                 CanRun =
                     isRunnableCommand,
@@ -153,6 +192,19 @@ internal static class JsonServices
                 IsUserModified =
                     false
             });
+    }
+
+    private static bool TryFindExistingTestFile(
+    string repository,
+    string sourceFile,
+    out string existingTestFile)
+    {
+        existingTestFile =
+            ExistingTestFileLocator.FindExistingTestFile(
+                repository,
+                sourceFile);
+
+        return !string.IsNullOrWhiteSpace(existingTestFile);
     }
 
 
@@ -243,6 +295,9 @@ internal static class JsonServices
         {
             "no_tests_found" =>
                 "Coverage gap",
+
+            "existing_test_found" =>
+                "Test exists (unstaged diff)",
 
             "ready_to_run" =>
                 "Ready to run",

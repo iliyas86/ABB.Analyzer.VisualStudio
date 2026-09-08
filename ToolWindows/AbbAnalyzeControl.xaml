@@ -446,6 +446,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <Button x:Name="LocalButton" Grid.Column="0" Style="{StaticResource CompactIconButtonStyle}" ToolTip="Run Local Check" Click="LocalButton_Click">
                     <TextBlock Style="{StaticResource ToolbarIconStyle}" Text="&#xE73E;"/>
@@ -485,6 +486,9 @@
                 </Button>
                 <Button x:Name="RunMutationButton" Grid.Column="12" Style="{StaticResource CompactIconButtonStyle}" ToolTip="Run Mutation Testing" Click="RunMutationTesting_Click">
                     <TextBlock Style="{StaticResource ToolbarIconStyle}" Text="&#xE768;"/>
+                </Button>
+                <Button x:Name="RunMutationOnModifiedButton" Grid.Column="13" Style="{StaticResource CompactIconButtonStyle}" ToolTip="Run Mutation Testing on Modified Files" Click="RunMutationTestingOnModified_Click">
+                    <TextBlock Style="{StaticResource ToolbarIconStyle}" Text="&#xE73F;"/>
                 </Button>
             </Grid>
             <TabControl Grid.Row="2" x:Name="Tabs" SelectedIndex="0" Style="{StaticResource ContentOnlyTabControlStyle}">

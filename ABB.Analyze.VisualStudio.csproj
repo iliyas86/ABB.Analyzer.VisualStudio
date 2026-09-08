@@ -8,6 +8,7 @@
     <RootNamespace>ABB.Analyze.VisualStudio</RootNamespace>
     <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ABB.Analyze.VisualStudio.Tests\**</DefaultItemExcludes>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
   </PropertyGroup>
   <ItemGroup>
