@@ -15,31 +15,18 @@ internal static class MutationService
 {
     private const int TimeoutMinutes = 30;
 
-    public static Task<MutationSummary> RunAsync(
-        string repository,
-        CancellationToken cancellationToken)
-    {
-        return RunAsync(
-            repository,
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            cancellationToken);
-    }
-
     public static async Task<MutationSummary> RunAsync(
         string repository,
-        string[] scopedFiles,
-        string[] mappedTestFilters,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool changedFilesOnly = false)
     {
         string projectDirectory = FindProjectoirectory(repository);
-
-        string arguments = BuildStrykerArguments(scopedFiles, mappedTestFilters);
 
         var startInfo = new ProcessStartInfo
         {
             FileName = "dotnet",
-            Arguments = arguments,
+            // --since:HEAD lets Stryker use its own git diff to scope mutation testing to modified code.
+            Arguments = changedFilesOnly ? "stryker --reporter json --since:HEAD" : "stryker --reporter json",
             WorkingDirectory = projectDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -96,38 +83,6 @@ internal static class MutationService
         }
 
         return summary;
-    }
-
-    private static string BuildStrykerArguments(
-        string[] scopedFiles,
-        string[] mappedTestFilters)
-    {
-        var builder = new StringBuilder("stryker --reporter json");
-
-        if (scopedFiles != null)
-        {
-            foreach (string file in scopedFiles)
-            {
-                if (string.IsNullOrWhiteSpace(file))
-                {
-                    continue;
-                }
-
-                builder.Append(" --mutate \"").Append(file).Append('"');
-            }
-        }
-
-        if (mappedTestFilters != null && mappedTestFilters.Length > 0)
-        {
-            string testFilter = string.Join("|", mappedTestFilters.Where(f => !string.IsNullOrWhiteSpace(f)));
-
-            if (!string.IsNullOrWhiteSpace(testFilter))
-            {
-                builder.Append(" --test-case-filter \"").Append(testFilter).Append('"');
-            }
-        }
-
-        return builder.ToString();
     }
 
     private static string FindProjectoirectory(

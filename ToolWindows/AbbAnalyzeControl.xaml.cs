@@ -4,10 +4,8 @@ using Microsoft.VisualStudio.Shell;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.Serialization.Json;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -48,7 +46,6 @@ public partial class AbbAnalyzeControl : UserControl
     private string _selectedModel = string.Empty;
     private bool _modelsLoaded;
     private MutationSummary? _mutationSummary;
-    private bool _mutationRunInProgress;
 
 
     internal enum MutationViewState
@@ -382,9 +379,6 @@ public partial class AbbAnalyzeControl : UserControl
                 GitRepositoryService.GetCurrentBranch(
                     repository);
 
-            await OfferToStageMissingTestFilesAsync(
-                repository);
-
             ProcessResult process;
 
             if (copilot)
@@ -419,8 +413,7 @@ public partial class AbbAnalyzeControl : UserControl
                 JsonServices.Build(
                     result,
                     branch,
-                    process.Output,
-                    repository);
+                    process.Output);
 
             await ThreadHelper.JoinableTaskFactory
                 .SwitchToMainThreadAsync();
@@ -466,66 +459,6 @@ public partial class AbbAnalyzeControl : UserControl
                 false,
                 "Ready");
         }
-    }
-
-    private async Task OfferToStageMissingTestFilesAsync(
-    string repository)
-    {
-        await ThreadHelper.JoinableTaskFactory
-            .SwitchToMainThreadAsync();
-
-        IReadOnlyList<string> unstagedTestFiles;
-
-        try
-        {
-            unstagedTestFiles =
-                TestFileStagingService.FindUnstagedTestFiles(
-                    repository);
-        }
-        catch
-        {
-            // If git detection fails for any reason, fall through and let
-            // QUACK run against whatever is currently staged.
-            return;
-        }
-
-        if (unstagedTestFiles.Count == 0)
-        {
-            return;
-        }
-
-        string fileList =
-            string.Join(
-                Environment.NewLine,
-                unstagedTestFiles);
-
-        MessageBoxResult stageResult =
-            MessageBox.Show(
-                "The following existing test file(s) match staged source changes " +
-                "but are not staged themselves. QUACK only analyzes staged changes, " +
-                "so this can cause a false \"Coverage gap\" result:" +
-                Environment.NewLine + Environment.NewLine +
-                fileList +
-                Environment.NewLine + Environment.NewLine +
-                "Stage these test file(s) now before running the analysis?",
-                "ABB AI Code Analyzer",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-        if (stageResult != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        foreach (string testFile in unstagedTestFiles)
-        {
-            GitRepositoryService.StageFile(
-                repository,
-                testFile);
-        }
-
-        OperationStatus.Text =
-            "Staged missing test file(s) before analysis.";
     }
 
     private string BuildCopilotCompletedMessage()
@@ -792,6 +725,9 @@ public partial class AbbAnalyzeControl : UserControl
         {
             RunMutationButton.IsEnabled =
                 !busy;
+
+            RunMutationChangedButton.IsEnabled =
+                !busy;
         }
 
         OperationStatus.Text =
@@ -812,18 +748,16 @@ public partial class AbbAnalyzeControl : UserControl
             "PR description copied to clipboard.";
     }
 
-    private async void RunMutationTesting_Click(
+    private void RunMutationTesting_Click(
     object sender,
-    RoutedEventArgs e)
+    RoutedEventArgs e) => RunMutationTestingAsync(changedFilesOnly: false);
+
+    private void RunMutationTestingChanged_Click(
+    object sender,
+    RoutedEventArgs e) => RunMutationTestingAsync(changedFilesOnly: true);
+
+    private async void RunMutationTestingAsync(bool changedFilesOnly)
     {
-        if (_mutationRunInProgress)
-        {
-            OperationStatus.Text =
-                "Mutation testing is already running.";
-
-            return;
-        }
-
         if (_operationCancellation != null)
         {
             OperationStatus.Text =
@@ -831,9 +765,6 @@ public partial class AbbAnalyzeControl : UserControl
 
             return;
         }
-
-        _mutationRunInProgress =
-            true;
 
         _operationCancellation =
             new CancellationTokenSource();
@@ -849,14 +780,22 @@ public partial class AbbAnalyzeControl : UserControl
 
         SetBusy(
             true,
-            "Discovering the test project and starting Stryker.NET...");
+            changedFilesOnly
+                ? "Discovering modified files and starting Stryker.NET..."
+                : "Discovering the test project and starting Stryker.NET...");
 
-        // SetBusy may already disable this button, but setting it
+        // SetBusy may already disable these buttons, but setting them
         // explicitly prevents a second mutation run.
         RunMutationButton.IsEnabled =
             false;
 
+        RunMutationChangedButton.IsEnabled =
+            false;
+
         RunMutationButton.ToolTip =
+            "Mutation testing is currently running.";
+
+        RunMutationChangedButton.ToolTip =
             "Mutation testing is currently running.";
 
         try
@@ -874,13 +813,24 @@ public partial class AbbAnalyzeControl : UserControl
                     "No Git repository is currently available.");
             }
 
+            if (changedFilesOnly &&
+                GitRepositoryService.GetChangedSourceFiles(repository).Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "No changed C# source files detected in the Git repository. " +
+                    "Make changes to a .cs file or commit them to your branch.");
+            }
+
             OperationStatus.Text =
-                "Running Stryker.NET mutation testing...";
+                changedFilesOnly
+                    ? "Running Stryker.NET mutation testing on modified files..."
+                    : "Running Stryker.NET mutation testing...";
 
             MutationSummary summary =
                 await MutationService.RunAsync(
                     repository,
-                    _operationCancellation.Token);
+                    _operationCancellation.Token,
+                    changedFilesOnly);
 
             await ThreadHelper.JoinableTaskFactory
                 .SwitchToMainThreadAsync(
@@ -918,7 +868,7 @@ public partial class AbbAnalyzeControl : UserControl
             SelectView(5);
 
             OperationStatus.Text =
-                $"Mutation testing completed. " +
+                $"Mutation testing completed{(changedFilesOnly ? " for modified files" : string.Empty)}. " +
                 $"Score: {summary.Score:0.00}%. " +
                 $"Surviving mutants: {summary.Survived}.";
         }
@@ -965,9 +915,6 @@ public partial class AbbAnalyzeControl : UserControl
             _operationCancellation =
                 null;
 
-            _mutationRunInProgress =
-                false;
-
             SetBusy(
                 false,
                 OperationStatus.Text);
@@ -975,324 +922,21 @@ public partial class AbbAnalyzeControl : UserControl
             RunMutationButton.IsEnabled =
                 true;
 
-            RunMutationButton.ToolTip =
-                _mutationSummary == null
-                    ? "Run Mutation Testing"
-                    : "Run Mutation Testing Again";
-
-            UpdateGeneratePrButtonState();
-        }
-    }
-
-    private async void RunMutationTestingOnModified_Click(
-    object sender,
-    RoutedEventArgs e)
-    {
-        if (_mutationRunInProgress)
-        {
-            OperationStatus.Text =
-                "Mutation testing is already running.";
-
-            return;
-        }
-
-        if (_operationCancellation != null)
-        {
-            OperationStatus.Text =
-                "Another operation is already running.";
-
-            return;
-        }
-
-        _mutationRunInProgress =
-            true;
-
-        _operationCancellation =
-            new CancellationTokenSource();
-
-        DateTime startedAt =
-            DateTime.Now;
-
-        SetMutationViewState(
-            MutationViewState.Running);
-
-        // Mutation Score is view index 5.
-        SelectView(5);
-
-        SetBusy(
-            true,
-            "Discovering modified files and starting Stryker.NET...");
-
-        // Set it explicitly to prevent a second mutation run.
-        RunMutationOnModifiedButton.IsEnabled =
-            false;
-
-        RunMutationOnModifiedButton.ToolTip =
-            "Mutation testing is currently running.";
-
-        try
-        {
-            await ThreadHelper.JoinableTaskFactory
-                .SwitchToMainThreadAsync(
-                    _operationCancellation.Token);
-
-            string repository =
-                GitRepositoryService.GetCurrentRepository();
-
-            if (string.IsNullOrWhiteSpace(repository))
-            {
-                throw new InvalidOperationException(
-                    "No Git repository is currently available.");
-            }
-
-            string[] modifiedFiles =
-                GitRepositoryService.GetModifiedFiles(repository);
-
-            if (modifiedFiles.Length == 0)
-            {
-                throw new InvalidOperationException(
-                    "No modified or staged files found in the current repository.");
-            }
-
-            OperationStatus.Text =
-                $"Discovering test mappings for {modifiedFiles.Length} modified file(s)...";
-
-            // Get mapped test commands from QUACK analysis
-            string[] mappedTestCommands = await GetMappedTestCommandsAsync(
-                repository,
-                modifiedFiles,
-                _operationCancellation.Token);
-
-            if (mappedTestCommands.Length == 0)
-            {
-                OperationStatus.Text =
-                    $"No test mappings found for modified files. Running mutations on {modifiedFiles.Length} file(s) without test filtering...";
-            }
-            else
-            {
-                OperationStatus.Text =
-                    $"Running Stryker.NET with {mappedTestCommands.Length} mapped test(s)...";
-            }
-
-            OperationStatus.Text =
-                "Scoped mutation files: " +
-                string.Join(", ", modifiedFiles.Take(5)) +
-                (modifiedFiles.Length > 5 ? " ..." : string.Empty) +
-                $" | mapped tests: {mappedTestCommands.Length}";
-
-            MutationSummary summary =
-                await MutationService.RunAsync(
-                    repository,
-                    modifiedFiles,
-                    mappedTestCommands,
-                    _operationCancellation.Token);
-
-            await ThreadHelper.JoinableTaskFactory
-                .SwitchToMainThreadAsync(
-                    _operationCancellation.Token);
-
-            TimeSpan duration =
-                DateTime.Now - startedAt;
-
-            _mutationSummary =
-                summary;
-
-            MutationScoreText.Text =
-                summary.Status;
-
-            MutationStatsText.Text =
-                $"Killed: {summary.Killed} | " +
-                $"Survived: {summary.Survived} | " +
-                $"Timed out: {summary.TimedOut} | " +
-                $"No coverage: {summary.NoCoverage} | " +
-                $"Ignored: {summary.Ignored} | " +
-                $"Compile errors: {summary.CompileErrors} | " +
-                $"Duration: {FormatDuration(duration)}";
-
-            MutationStatsText.ToolTip =
-                string.IsNullOrWhiteSpace(summary.ReportPath)
-                    ? null
-                    : summary.ReportPath;
-
-            SurvivorsGrid.ItemsSource =
-                summary.Survivors;
-
-            SetMutationViewState(
-                MutationViewState.Completed);
-
-            SelectView(5);
-
-            bool cacheHit =
-                !string.IsNullOrWhiteSpace(summary.ReportPath) &&
-                summary.ReportPath.StartsWith("[CACHE HIT]", StringComparison.Ordinal);
-
-            OperationStatus.Text =
-                cacheHit
-                    ? $"Mutation testing reused cached result for scoped files. Score: {summary.Score:0.00}%. Surviving mutants: {summary.Survived}."
-                    : $"Mutation testing on modified files completed. Score: {summary.Score:0.00}%. Surviving mutants: {summary.Survived}.";
-        }
-        catch (OperationCanceledException)
-        {
-            await ThreadHelper.JoinableTaskFactory
-                .SwitchToMainThreadAsync();
-
-            SetMutationViewState(
-                _mutationSummary == null
-                    ? MutationViewState.NotRun
-                    : MutationViewState.Completed);
-
-            OperationStatus.Text =
-                "Mutation testing was cancelled. " +
-                "The previous mutation result has been preserved.";
-        }
-        catch (Exception exception)
-        {
-            await ThreadHelper.JoinableTaskFactory
-                .SwitchToMainThreadAsync();
-
-            SetMutationViewState(
-                _mutationSummary == null
-                    ? MutationViewState.NotRun
-                    : MutationViewState.Completed);
-
-            TestResultsText.Text =
-                exception.ToString();
-
-            SelectView(3);
-
-            OperationStatus.Text =
-                "Mutation testing failed: " +
-                exception.Message;
-        }
-        finally
-        {
-            await ThreadHelper.JoinableTaskFactory
-                .SwitchToMainThreadAsync();
-
-            _operationCancellation?.Dispose();
-
-            _operationCancellation =
-                null;
-
-            _mutationRunInProgress =
-                false;
-
-            SetBusy(
-                false,
-                OperationStatus.Text);
-
-            RunMutationOnModifiedButton.IsEnabled =
+            RunMutationChangedButton.IsEnabled =
                 true;
 
-            RunMutationOnModifiedButton.ToolTip =
+            RunMutationButton.ToolTip =
                 _mutationSummary == null
-                    ? "Run Mutation Testing on Modified Files"
-                    : "Run Mutation Testing on Modified Files Again";
+                    ? "Run Mutation Testing (Entire Solution)"
+                    : "Run Mutation Testing Again (Entire Solution)";
+
+            RunMutationChangedButton.ToolTip =
+                _mutationSummary == null
+                    ? "Run Mutation Testing (Modified Files Only)"
+                    : "Run Mutation Testing Again (Modified Files Only)";
 
             UpdateGeneratePrButtonState();
         }
-    }
-
-    private async Task<string[]> GetMappedTestCommandsAsync(
-        string repository,
-        string[] modifiedFiles,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            // Get QUACK analysis to find test mappings
-            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
-
-            ProcessResult checkResult = await QuackRunner.CheckAsync(repository, cancellationToken);
-
-            if (checkResult.ExitCode != 0 || string.IsNullOrWhiteSpace(checkResult.Output))
-            {
-                return Array.Empty<string>();
-            }
-
-            QuackCheckResult result = JsonServices.Deserialize(checkResult.Output);
-
-            if (result?.TestGuidance == null || result.TestGuidance.Count == 0)
-            {
-                return Array.Empty<string>();
-            }
-
-            // Map source files to their test commands
-            var modifiedFileSet = new HashSet<string>(
-                modifiedFiles.Select(f => 
-                    RemoveExtension(Path.GetFileName(f))),
-                StringComparer.OrdinalIgnoreCase);
-
-            var mappedTests = new List<string>();
-
-            foreach (var testGuidance in result.TestGuidance)
-            {
-                // Check if this test guidance is for one of our modified files
-                string sourceFileName = RemoveExtension(Path.GetFileName(testGuidance.SourceFile));
-
-                if (modifiedFileSet.Contains(sourceFileName))
-                {
-                    // Extract test method/class name from the test command
-                    string testFilter = ExtractTestFilter(testGuidance.TestOrCommand);
-                    if (!string.IsNullOrWhiteSpace(testFilter))
-                    {
-                        mappedTests.Add(testFilter);
-                    }
-                }
-            }
-
-            return mappedTests.ToArray();
-        }
-        catch
-        {
-            // If we can't get test mappings, continue without them
-            return Array.Empty<string>();
-        }
-    }
-
-    private static string RemoveExtension(string fileName)
-    {
-        if (fileName.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-        {
-            return fileName.Substring(0, fileName.Length - 3);
-        }
-        return fileName;
-    }
-
-    private static string ExtractTestFilter(string testOrCommand)
-    {
-        // Extract test name from command like:
-        // "dotnet test /path/to/Test.csproj --filter "FullyQualifiedName~TestClass.TestMethod""
-        if (string.IsNullOrWhiteSpace(testOrCommand))
-        {
-            return string.Empty;
-        }
-
-        // Look for --filter parameter
-        var match = Regex.Match(
-            testOrCommand,
-            @"--filter\s+[""']?([^""']+)[""']?");
-
-        if (match.Success)
-        {
-            return match.Groups[1].Value;
-        }
-
-        // If no filter found, try to extract test class/method name
-        // Look for .Test.csproj pattern and assume test class name
-        if (testOrCommand.Contains(".Test"))
-        {
-            // Extract the test file/class name
-            var testMatch = Regex.Match(
-                testOrCommand,
-                @"Test[s]?\.csproj");
-            if (testMatch.Success)
-            {
-                return testOrCommand;
-            }
-        }
-
-        return testOrCommand;
     }
 
     private void UpdateGeneratePrButtonState()
