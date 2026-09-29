@@ -605,18 +605,25 @@
                                 </StackPanel>
                                 <TextBlock x:Name="MutationStatsText" Foreground="White" Margin="12,0,0,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"/>
                             </DockPanel>
-                            <DataGrid x:Name="SurvivorsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Background="{StaticResource PanelBackgroundBrush}" Foreground="{StaticResource PrimaryTextBrush}" BorderBrush="{StaticResource ControlBorderBrush}" HorizontalGridLinesBrush="{StaticResource ControlBorderBrush}" VerticalGridLinesBrush="{StaticResource ControlBorderBrush}" RowBackground="{StaticResource PanelBackgroundBrush}" AlternatingRowBackground="#232323" RowStyle="{StaticResource DarkDataGridRowStyle}" CellStyle="{StaticResource DarkDataGridCellStyle}" ColumnHeaderStyle="{StaticResource DarkDataGridHeaderStyle}" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" MouseDoubleClick="SurvivorsGrid_DoubleClick">
+                            <DataGrid x:Name="SurvivorsGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False" HeadersVisibility="Column" Background="{StaticResource PanelBackgroundBrush}" Foreground="{StaticResource PrimaryTextBrush}" BorderBrush="{StaticResource ControlBorderBrush}" HorizontalGridLinesBrush="{StaticResource ControlBorderBrush}" VerticalGridLinesBrush="{StaticResource ControlBorderBrush}" RowBackground="{StaticResource PanelBackgroundBrush}" AlternatingRowBackground="#232323" RowStyle="{StaticResource DarkDataGridRowStyle}" CellStyle="{StaticResource DarkDataGridCellStyle}" ColumnHeaderStyle="{StaticResource DarkDataGridHeaderStyle}" EnableRowVirtualization="True" EnableColumnVirtualization="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" PreviewMouseLeftButtonUp="SurvivorsGrid_PreviewMouseLeftButtonUp">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="220"/>
-                                    <DataGridTextColumn Header="Mutator" Binding="{Binding Mutator}" Width="180"/>
-                                    <DataGridTemplateColumn Header="Description" Width="*">
-                                        <DataGridTemplateColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Description}" Padding="3" TextWrapping="Wrap"/>
-                                            </DataTemplate>
-                                        </DataGridTemplateColumn.CellTemplate>
-                                    </DataGridTemplateColumn>
-                                </DataGrid.Columns>
+                                        <DataGridTextColumn Header="Mutator" Binding="{Binding Mutator}" Width="180"/>
+                                        <DataGridTemplateColumn Header="Description" Width="*">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Description}" Padding="3" TextWrapping="Wrap"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                        <DataGridTemplateColumn Header="Analysis" Width="120">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding AnalysisStatus}" Padding="3" TextWrapping="Wrap"/>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
                             </DataGrid>
                         </Grid>
                     </Grid>

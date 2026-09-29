@@ -826,6 +826,9 @@ public partial class AbbAnalyzeControl : UserControl
                     ? "Running Stryker.NET mutation testing on modified files..."
                     : "Running Stryker.NET mutation testing...";
 
+            _model.Repository =
+                repository;
+
             MutationSummary summary =
                 await MutationService.RunAsync(
                     repository,
@@ -871,6 +874,22 @@ public partial class AbbAnalyzeControl : UserControl
                 $"Mutation testing completed{(changedFilesOnly ? " for modified files" : string.Empty)}. " +
                 $"Score: {summary.Score:0.00}%. " +
                 $"Surviving mutants: {summary.Survived}.";
+
+            if (summary.Survivors.Count > 0)
+            {
+                OperationStatus.Text =
+                    "Analyzing surviving mutant descriptions...";
+
+                await AnalyzeMutationDescriptionsAsync(
+                    repository,
+                    summary.Survivors,
+                    _operationCancellation.Token);
+
+                OperationStatus.Text =
+                    $"Mutation testing completed{(changedFilesOnly ? " for modified files" : string.Empty)}. " +
+                    $"Score: {summary.Score:0.00}%. " +
+                    $"Surviving mutants: {summary.Survived}.";
+            }
         }
         catch (OperationCanceledException)
         {
@@ -964,18 +983,89 @@ public partial class AbbAnalyzeControl : UserControl
             @"mm\:ss");
     }
 
-    private void SurvivorsGrid_DoubleClick(
+    private async Task AnalyzeMutationDescriptionsAsync(
+        string repository,
+        IEnumerable<SurvivingMutant> mutants,
+        CancellationToken cancellationToken)
+    {
+        foreach (SurvivingMutant mutant in mutants)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            mutant.IsAnalyzing = true;
+            mutant.AnalysisStatus = "Analyzing...";
+
+            try
+            {
+                MutationAnalysisResult result =
+                    await MutationAnalysisService.AnalyzeAsync(
+                        repository,
+                        mutant,
+                        cancellationToken);
+
+                mutant.Description = result.Description;
+                mutant.AnalysisStatus = "Analyzed";
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                mutant.Description =
+                    "Unable to analyze this mutation: " + exception.Message;
+                mutant.AnalysisStatus = "Analysis failed";
+            }
+            finally
+            {
+                mutant.IsAnalyzing = false;
+            }
+        }
+    }
+
+    private void SurvivorsGrid_PreviewMouseLeftButtonUp(
         object sender,
         System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (SurvivorsGrid.SelectedItem is
-            SurvivingMutant mutant)
+        var row =
+            FindAncestor<DataGridRow>(
+                e.OriginalSource as DependencyObject);
+
+        if (row?.Item is not SurvivingMutant mutant)
         {
+            return;
+        }
+
+        string repository =
+            string.IsNullOrWhiteSpace(_model.Repository)
+                ? GitRepositoryService.GetCurrentRepository()
+                : _model.Repository;
+
+        FileNavigationResult result =
             FileNavigationService.Open(
-                _model.Repository,
+                repository,
                 mutant.File,
                 mutant.Line);
+
+        OperationStatus.Text =
+            result.Success
+                ? $"Opened {Path.GetFileName(result.Path)} at line {mutant.Line}."
+                : result.ErrorMessage;
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? current)
+        where T : DependencyObject
+    {
+        while (current != null)
+        {
+            if (current is T match)
+            {
+                return match;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
         }
+
+        return null;
     }
 
     private void OpenSourceFile(

@@ -89,6 +89,15 @@ namespace ABB.Analyze.VisualStudio.Services
             }
         }
 
+        public static string ResolveSourcePath(
+            string repository,
+            string relativePath)
+        {
+            return ResolvePath(
+                repository,
+                relativePath);
+        }
+
         private static string ResolvePath(
             string repository,
             string path)
