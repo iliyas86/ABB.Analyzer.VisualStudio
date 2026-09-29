@@ -17,6 +17,9 @@ The extension uses the **QUACK** analysis engine. A tested, self-contained `quac
 - Display test output inside the tool window
 - Generate pull-request descriptions
 - Run Stryker.NET mutation testing and review surviving mutants
+- Connect to Azure DevOps Services, fetch a work item, and turn its acceptance criteria into editable checkpoints
+- Preview saved staged, unstaged, and untracked Git changes alongside the checkpoints
+- Evaluate checkpoints with the selected GitHub Copilot model and review cited diff evidence
 - Inspect and copy raw JSON returned by QUACK
 - Navigate from findings and files to the relevant source location
 - Follow the active Visual Studio light or dark theme
@@ -57,6 +60,14 @@ The repository being analyzed remains the process working directory. This allows
 - Stryker.NET only when mutation testing is used and the repository does not provide it through a local tool manifest
 
 Python is not required when the bundled `quack.exe` is self-contained.
+
+### Azure Boards
+
+The Azure Boards view accepts an Azure DevOps PAT. Create an organization-scoped PAT with only **Work Items (Read)** permission and the shortest practical expiration. Enter it in the masked field; the extension clears the field immediately and holds the token in memory only for the current Visual Studio session. It does not save the token to settings, source files, or logs.
+
+The view fetches work-item title, description, acceptance criteria, and bug repro steps. Build the checklist locally or select **Draft gates with Copilot** for concise candidate gates, then review and edit them. Select **Evaluate with Copilot** to send the story, checkpoints, and current Git diff to the selected model. The extension requests a structured result per checkpoint and verifies that every decisive verdict cites an exact added line from the diff. Unverifiable or missing evidence is downgraded to **Inconclusive**. The gate passes only when every checkpoint is **Met**; any **Not met** result fails it, and inconclusive items require review.
+
+Evaluation requires the GitHub Copilot CLI to be installed and signed in for the current Windows user. The CLI runs without repository tools or built-in MCP tools; the extension supplies only the prompt and diff. Before each evaluation, the UI asks for confirmation because story text and changed code are sent to GitHub Copilot. Re-evaluate after changing the diff or editing checkpoints. AI results are advisory and should be reviewed against the cited code.
 
 ### Extension developers
 

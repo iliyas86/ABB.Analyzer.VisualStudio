@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using DiagnosticProcess = System.Diagnostics.Process;
 
 namespace ABB.Analyze.VisualStudio.Services;
@@ -33,6 +34,45 @@ internal static class GitCommandService
             .Where(path => path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    public static string GetWorkingTreeDiff(string repository)
+    {
+        var diff = new StringBuilder(
+            Git(repository, "diff --no-ext-diff --unified=3 HEAD --") ?? string.Empty);
+
+        foreach (string relativePath in GetUntrackedFiles(repository))
+        {
+            string fullPath = Path.Combine(
+                repository,
+                relativePath.Replace('/', Path.DirectorySeparatorChar));
+
+            try
+            {
+                string content = File.ReadAllText(fullPath);
+                if (content.IndexOf('\0') >= 0)
+                {
+                    continue;
+                }
+
+                diff.AppendLine();
+                diff.AppendLine($"--- /dev/null");
+                diff.AppendLine($"+++ b/{relativePath.Replace('\\', '/')}");
+
+                foreach (string line in content.Replace("\r\n", "\n").Split('\n'))
+                {
+                    diff.Append('+').AppendLine(line);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        return diff.ToString();
     }
 
     public static string[] GetAllTrackedFiles(string repository) =>

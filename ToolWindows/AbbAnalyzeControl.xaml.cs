@@ -18,6 +18,10 @@ public partial class AbbAnalyzeControl : UserControl
 {
     private DashboardModel _model = new();
     private CancellationTokenSource? _operationCancellation;
+    private readonly AzureDevOpsWorkItemService _azureDevOpsWorkItemService = new();
+    private AzureDevOpsWorkItem? _azureDevOpsWorkItem;
+    private List<StoryCheckpoint> _checkpoints = new();
+    private string _checkpointEvaluationModel = string.Empty;
 
     public AbbAnalyzeControl()
     {
@@ -100,7 +104,7 @@ public partial class AbbAnalyzeControl : UserControl
 
         try
         {
-            await LoadAvailableModelsAsync();
+            await LoadAvailableModelsAsync(showDiscoveryErrors: false);
         }
         catch (Exception ex)
         {
@@ -110,7 +114,7 @@ public partial class AbbAnalyzeControl : UserControl
         }
     }
 
-    private async Task LoadAvailableModelsAsync()
+    private async Task LoadAvailableModelsAsync(bool showDiscoveryErrors = true)
     {
         RefreshModelsButton.IsEnabled = false;
         ModelComboBox.IsEnabled = false;
@@ -167,24 +171,17 @@ public partial class AbbAnalyzeControl : UserControl
             }
 
             _modelsLoaded = true;
-
-            OperationStatus.Text =
-                availableModels.Count == 0
-                    ? "No reachable Copilot models were returned."
-                    : $"{availableModels.Count} Copilot model(s) available.";
-
-            if (ModelComboBox.SelectedItem == null &&
-                availableModels.Count > 0)
+            if (availableModels.Count == 0)
             {
-                ModelComboBox.SelectedIndex = 0;
+                LoadDefaultModel();
+                OperationStatus.Text =
+                    "Default model set. Select Refresh Models to load available Copilot models.";
             }
-
-            _modelsLoaded = true;
-
-            OperationStatus.Text =
-                availableModels.Count == 0
-                    ? "No selectable Copilot models were returned."
-                    : $"{availableModels.Count} Copilot model(s) available.";
+            else
+            {
+                OperationStatus.Text =
+                    $"{availableModels.Count} Copilot model(s) loaded. Refresh Models to reload the list.";
+            }
         }
         catch (Exception exception)
         {
@@ -194,10 +191,9 @@ public partial class AbbAnalyzeControl : UserControl
              */
             LoadDefaultModel();
 
-            OperationStatus.Text =
-                "Model discovery unavailable. " +
-                "QUACK will use its default model. " +
-                exception.Message;
+            OperationStatus.Text = showDiscoveryErrors
+                ? "Default model set. Select Refresh Models to load available Copilot models. " + exception.Message
+                : "Default model set. Select Refresh Models to load available Copilot models.";
             System.Diagnostics.Debug.WriteLine(exception);
         }
         finally
@@ -494,7 +490,364 @@ public partial class AbbAnalyzeControl : UserControl
     {
         _modelsLoaded = false;
 
-        await LoadAvailableModelsAsync();
+        await LoadAvailableModelsAsync(showDiscoveryErrors: true);
+    }
+
+    private void ConnectAzureDevOpsButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        SetOperationComplete(ConnectAzureDevOpsCheck, false);
+        try
+        {
+            _azureDevOpsWorkItemService.ConnectWithPersonalAccessToken(
+                AzureDevOpsPatBox.Password);
+            AzureDevOpsPatBox.Clear();
+            FetchWorkItemButton.IsEnabled = true;
+            SetOperationComplete(ConnectAzureDevOpsCheck, true);
+            AzureDevOpsStatusText.Text = "PAT accepted for this Visual Studio session. Fetch a work item to validate access.";
+        }
+        catch (Exception exception)
+        {
+            SetOperationComplete(ConnectAzureDevOpsCheck, false);
+            AzureDevOpsPatBox.Clear();
+            AzureDevOpsStatusText.Text = "Could not connect: " + exception.Message;
+        }
+    }
+
+    private async void FetchWorkItemButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (!int.TryParse(AzureDevOpsWorkItemIdText.Text, out int workItemId) || workItemId <= 0)
+        {
+            AzureDevOpsStatusText.Text = "Enter a positive work item ID.";
+            return;
+        }
+
+        SetOperationComplete(FetchWorkItemCheck, false);
+        FetchWorkItemButton.IsEnabled = false;
+        AzureDevOpsStatusText.Text = "Fetching work item...";
+
+        try
+        {
+            _azureDevOpsWorkItem = await _azureDevOpsWorkItemService.GetWorkItemAsync(
+                AzureDevOpsOrganizationText.Text.Trim(),
+                AzureDevOpsProjectText.Text.Trim(),
+                workItemId,
+                CancellationToken.None);
+
+            WorkItemHeaderText.Text =
+                $"{_azureDevOpsWorkItem.Type} {_azureDevOpsWorkItem.Id}: {_azureDevOpsWorkItem.Title}";
+            WorkItemDescriptionText.Text = _azureDevOpsWorkItem.Description;
+            WorkItemCriteriaText.Text =
+                !string.IsNullOrWhiteSpace(_azureDevOpsWorkItem.AcceptanceCriteria)
+                    ? _azureDevOpsWorkItem.AcceptanceCriteria
+                    : _azureDevOpsWorkItem.ReproSteps;
+                    SetOperationComplete(FetchWorkItemCheck, true);
+                    SetOperationComplete(CreateCheckpointsCheck, false);
+                    SetOperationComplete(DraftCheckpointsCheck, false);
+                    SetOperationComplete(EvaluateCheckpointsCheck, false);
+                    SetOperationComplete(LoadCurrentDiffCheck, false);
+            CreateCheckpointsButton.IsEnabled = true;
+            _checkpoints.Clear();
+            CheckpointsGrid.ItemsSource = null;
+            _checkpointEvaluationModel = string.Empty;
+            UpdateCheckpointActions();
+            UpdateCheckpointGateSummary();
+            AzureDevOpsStatusText.Text = "Work item loaded. Review its criteria, then build the checkpoint list.";
+        }
+        catch (Exception exception)
+        {
+            SetOperationComplete(FetchWorkItemCheck, false);
+            AzureDevOpsStatusText.Text = "Work item fetch failed: " + exception.Message;
+        }
+        finally
+        {
+            FetchWorkItemButton.IsEnabled = true;
+        }
+    }
+
+    private void CreateCheckpointsButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (_azureDevOpsWorkItem == null)
+        {
+            return;
+        }
+
+        SetOperationComplete(CreateCheckpointsCheck, false);
+        SetOperationComplete(DraftCheckpointsCheck, false);
+        SetOperationComplete(EvaluateCheckpointsCheck, false);
+        _checkpoints =
+            AzureDevOpsWorkItemParser.CreateCheckpoints(_azureDevOpsWorkItem);
+
+        _checkpointEvaluationModel = string.Empty;
+        CheckpointsGrid.ItemsSource = _checkpoints;
+        CheckpointsGrid.Items.Refresh();
+        UpdateCheckpointActions();
+        UpdateCheckpointGateSummary();
+        SetOperationComplete(CreateCheckpointsCheck, _checkpoints.Count > 0);
+
+        AzureDevOpsStatusText.Text =
+            CheckpointsGrid.Items.Count == 0
+                ? "No acceptance criteria, repro steps, or description text was available to turn into checkpoints."
+                : $"Created {CheckpointsGrid.Items.Count} editable checkpoints. They have not been evaluated.";
+    }
+
+    private async void DraftCheckpointsButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (_azureDevOpsWorkItem == null || _operationCancellation != null)
+        {
+            return;
+        }
+
+        MessageBoxResult confirmation = MessageBox.Show(
+            "The work-item title and text will be sent to GitHub Copilot to draft candidate gates. Continue?",
+            "Draft Checkpoints with Copilot",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetOperationComplete(DraftCheckpointsCheck, false);
+        SetOperationComplete(EvaluateCheckpointsCheck, false);
+        _operationCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = _operationCancellation.Token;
+        string model = string.IsNullOrWhiteSpace(_selectedModel) ? "auto" : _selectedModel;
+        AzureDevOpsStatusText.Text = $"Drafting candidate gates with Copilot ({model})...";
+        SetBusy(true, "Drafting checkpoints with Copilot...");
+
+        try
+        {
+            string prompt = CheckpointEvaluationService.BuildCheckpointDraftPrompt(_azureDevOpsWorkItem);
+            string response = await CopilotCliRunner.RunPromptAsync(prompt, model, cancellationToken);
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            _checkpoints = CheckpointEvaluationService.ParseCheckpointDraft(response);
+            _checkpointEvaluationModel = string.Empty;
+            CheckpointsGrid.ItemsSource = _checkpoints;
+            CheckpointsGrid.Items.Refresh();
+            UpdateCheckpointActions();
+            UpdateCheckpointGateSummary();
+            SetOperationComplete(DraftCheckpointsCheck, _checkpoints.Count > 0);
+            AzureDevOpsStatusText.Text = _checkpoints.Count == 0
+                ? "Copilot could not infer concrete gates. Add criteria or use the editable checkpoint builder."
+                : $"Copilot drafted {_checkpoints.Count} gates. Review and edit them before evaluation.";
+        }
+        catch (OperationCanceledException)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            SetOperationComplete(DraftCheckpointsCheck, false);
+            AzureDevOpsStatusText.Text = "Checkpoint drafting cancelled.";
+        }
+        catch (Exception exception)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            SetOperationComplete(DraftCheckpointsCheck, false);
+            AzureDevOpsStatusText.Text = "Could not draft checkpoints: " + exception.Message;
+        }
+        finally
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            _operationCancellation?.Dispose();
+            _operationCancellation = null;
+            SetBusy(false, "Ready");
+            UpdateCheckpointActions();
+        }
+    }
+
+    private async void LoadCurrentDiffButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        SetOperationComplete(LoadCurrentDiffCheck, false);
+        SetOperationComplete(EvaluateCheckpointsCheck, false);
+        try
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            string repository = GitRepositoryService.GetCurrentRepository();
+            AzureDevOpsStatusText.Text = "Loading saved Git changes...";
+
+            string diff = await Task.Run(
+                () => GitCommandService.GetWorkingTreeDiff(repository));
+
+            SetCurrentDiffPreview(diff);
+            ResetCheckpointEvaluations();
+            SetOperationComplete(LoadCurrentDiffCheck, true);
+
+            AzureDevOpsStatusText.Text = "Current saved Git diff loaded. Run Copilot evaluation to update the gate.";
+        }
+        catch (Exception exception)
+        {
+            SetOperationComplete(LoadCurrentDiffCheck, false);
+            AzureDevOpsStatusText.Text = "Could not load Git changes: " + exception.Message;
+        }
+    }
+
+    private async void EvaluateCheckpointsButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (_checkpoints.Count == 0 || _azureDevOpsWorkItem == null || _operationCancellation != null)
+        {
+            return;
+        }
+
+        MessageBoxResult confirmation = MessageBox.Show(
+            "Copilot will compare the work-item checkpoints with the current saved Git diff using the selected model. The work-item text and changed code will be sent to GitHub Copilot. It will assign Met, Not met, or Inconclusive and provide evidence for each result. Review the evidence before treating the gate as a decision. Continue?",
+            "Confirm Copilot Checkpoint Evaluation",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        SetOperationComplete(EvaluateCheckpointsCheck, false);
+        _operationCancellation = new CancellationTokenSource();
+        CancellationToken cancellationToken = _operationCancellation.Token;
+        string model = string.IsNullOrWhiteSpace(_selectedModel) ? "auto" : _selectedModel;
+
+        ResetCheckpointEvaluations();
+        CheckpointGateSummaryText.Text = "EVALUATING...";
+        CheckpointGateSummaryText.Foreground = Brushes.Goldenrod;
+        AzureDevOpsStatusText.Text = $"Evaluating checkpoints with Copilot ({model})...";
+        SetBusy(true, "Copilot checkpoint evaluation running...");
+
+        try
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            string repository = GitRepositoryService.GetCurrentRepository();
+
+            string diff = await Task.Run(
+                () => GitCommandService.GetWorkingTreeDiff(repository),
+                cancellationToken);
+
+            if (string.IsNullOrWhiteSpace(diff))
+            {
+                throw new InvalidOperationException(
+                    "No staged, unstaged, or untracked changes were found to evaluate.");
+            }
+
+            SetCurrentDiffPreview(diff);
+            string prompt = CheckpointEvaluationService.BuildPrompt(
+                _azureDevOpsWorkItem,
+                _checkpoints,
+                diff);
+
+            string response = await CopilotCliRunner.RunPromptAsync(
+                prompt,
+                model,
+                cancellationToken);
+
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+            CheckpointEvaluationService.ApplyResponse(response, _checkpoints, diff);
+            CheckpointsGrid.Items.Refresh();
+            _checkpointEvaluationModel = model;
+            UpdateCheckpointGateSummary();
+            SetOperationComplete(EvaluateCheckpointsCheck, true);
+            AzureDevOpsStatusText.Text =
+                $"Evaluation complete using {model}. Review the evidence before relying on the gate.";
+        }
+        catch (OperationCanceledException)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            SetOperationComplete(EvaluateCheckpointsCheck, false);
+            ResetCheckpointEvaluations();
+            AzureDevOpsStatusText.Text = "Copilot evaluation cancelled; checkpoints remain not evaluated.";
+        }
+        catch (Exception exception)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            SetOperationComplete(EvaluateCheckpointsCheck, false);
+            ResetCheckpointEvaluations();
+            AzureDevOpsStatusText.Text = "Copilot evaluation failed: " + exception.Message;
+        }
+        finally
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+            _operationCancellation?.Dispose();
+            _operationCancellation = null;
+            SetBusy(false, "Ready");
+            UpdateCheckpointActions();
+        }
+    }
+
+    private void CheckpointsGrid_CellEditEnding(
+    object sender,
+    DataGridCellEditEndingEventArgs e)
+    {
+        SetOperationComplete(EvaluateCheckpointsCheck, false);
+        _checkpointEvaluationModel = string.Empty;
+        CheckpointGateSummaryText.Text = "REVIEW REQUIRED | checkpoint edited; re-evaluate";
+        CheckpointGateSummaryText.Foreground = new SolidColorBrush(Color.FromRgb(230, 180, 80));
+        AzureDevOpsStatusText.Text =
+            "Checkpoint edited. Run Copilot evaluation again to refresh the gate.";
+    }
+
+    private void SetCurrentDiffPreview(string diff)
+    {
+        const int maximumPreviewLength = 120000;
+        CurrentDiffText.Text = diff.Length > maximumPreviewLength
+            ? diff.Substring(0, maximumPreviewLength) + Environment.NewLine + "[Preview truncated]"
+            : string.IsNullOrWhiteSpace(diff)
+                ? "No saved staged, unstaged, or untracked changes were found."
+                : diff;
+    }
+
+    private void ResetCheckpointEvaluations()
+    {
+        _checkpointEvaluationModel = string.Empty;
+        foreach (StoryCheckpoint checkpoint in _checkpoints)
+        {
+            checkpoint.ResetEvaluation();
+        }
+
+        CheckpointsGrid.Items.Refresh();
+        UpdateCheckpointGateSummary();
+    }
+
+    private void UpdateCheckpointGateSummary()
+    {
+        string summary = CheckpointEvaluationService.GetGateSummary(_checkpoints);
+        CheckpointGateSummaryText.Text = string.IsNullOrWhiteSpace(_checkpointEvaluationModel)
+            ? summary
+            : $"{summary} | {_checkpointEvaluationModel}";
+        CheckpointGateSummaryText.Foreground = summary.StartsWith("GATE PASSED", StringComparison.Ordinal)
+            ? new SolidColorBrush(Color.FromRgb(115, 201, 145))
+            : summary.StartsWith("GATE FAILED", StringComparison.Ordinal)
+                ? new SolidColorBrush(Color.FromRgb(240, 113, 120))
+                : summary.StartsWith("REVIEW REQUIRED", StringComparison.Ordinal)
+                    ? new SolidColorBrush(Color.FromRgb(230, 180, 80))
+                    : Brushes.Gray;
+    }
+
+    private void UpdateCheckpointActions()
+    {
+        CreateCheckpointsButton.IsEnabled = _azureDevOpsWorkItem != null;
+        DraftCheckpointsButton.IsEnabled =
+            _operationCancellation == null && _azureDevOpsWorkItem != null;
+        EvaluateCheckpointsButton.IsEnabled =
+            _operationCancellation == null &&
+            _azureDevOpsWorkItem != null &&
+            _checkpoints.Count > 0;
+    }
+
+    private static void SetOperationComplete(
+    System.Windows.Controls.TextBlock indicator,
+    bool completed)
+    {
+        indicator.Visibility = completed
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private async void RunTest_Click(
@@ -720,6 +1073,15 @@ public partial class AbbAnalyzeControl : UserControl
 
         GeneratePrButton.IsEnabled =
             !busy;
+
+        ConnectAzureDevOpsButton.IsEnabled = !busy;
+        FetchWorkItemButton.IsEnabled = !busy && _azureDevOpsWorkItemService.IsConnected;
+        CreateCheckpointsButton.IsEnabled = !busy && _azureDevOpsWorkItem != null;
+        DraftCheckpointsButton.IsEnabled = !busy && _azureDevOpsWorkItem != null;
+        LoadCurrentDiffButton.IsEnabled = !busy;
+
+        EvaluateCheckpointsButton.IsEnabled =
+            !busy && _azureDevOpsWorkItem != null && _checkpoints.Count > 0;
 
         if (_operationCancellation == null)
         {

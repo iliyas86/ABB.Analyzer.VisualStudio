@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
     <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +32,13 @@
     <Compile Include="..\Services\JsonServices.cs" Link="Sources\JsonServices.cs" />
     <Compile Include="..\Models\QuackModels.cs" Link="Sources\QuackModels.cs" />
     <Compile Include="..\Models\DashboardModel.cs" Link="Sources\DashboardModel.cs" />
+    <Compile Include="..\Models\AzureDevOpsWorkItem.cs" Link="Sources\AzureDevOpsWorkItem.cs" />
+    <Compile Include="..\Services\AzureDevOpsWorkItemService.cs" Link="Sources\AzureDevOpsWorkItemService.cs" />
+    <Compile Include="..\Services\CheckpointEvaluationService.cs" Link="Sources\CheckpointEvaluationService.cs" />
+    <Compile Include="..\Services\CopilotCliRunner.cs" Link="Sources\CopilotCliRunner.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
 </Project>

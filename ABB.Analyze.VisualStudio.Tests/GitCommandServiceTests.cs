@@ -50,6 +50,29 @@ public class GitCommandServiceTests
     }
 
     [TestMethod]
+    public void GetWorkingTreeDiff_IncludesStagedUnstagedAndUntrackedChanges()
+    {
+        using var repo = new TempGitRepository();
+
+        repo.WriteFile("Staged.cs", "class Staged { int Value = 1; }");
+        repo.WriteFile("Unstaged.cs", "class Unstaged { int Value = 1; }");
+        repo.AddAll();
+        repo.Commit("initial");
+
+        repo.WriteFile("Staged.cs", "class Staged { int Value = 2; }");
+        repo.Add("Staged.cs");
+        repo.WriteFile("Unstaged.cs", "class Unstaged { int Value = 2; }");
+        repo.WriteFile("New.cs", "class NewFile { int Value = 3; }");
+
+        string diff = GitCommandService.GetWorkingTreeDiff(repo.Path);
+
+        StringAssert.Contains(diff, "Staged.cs");
+        StringAssert.Contains(diff, "Unstaged.cs");
+        StringAssert.Contains(diff, "New.cs");
+        StringAssert.Contains(diff, "+class NewFile { int Value = 3; }");
+    }
+
+    [TestMethod]
     public void GetUntrackedFiles_ReturnsNewFilesNotYetAdded()
     {
         using var repo = new TempGitRepository();
