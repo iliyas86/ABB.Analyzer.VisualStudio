@@ -159,13 +159,13 @@ internal static class MutationService
             foreach (JToken mutant in mutants)
             {
                 string status = mutant["status"]?.Value<string>() ?? string.Empty;
+                string normalizedStatus = NormalizeStatus(status);
 
                 switch (status.ToLowerInvariant())
                 {
                     case "killed": summary.Killed++; break;
                     case "survived":
                         summary.Survived++;
-                        summary.Survivors.Add(CreateSurvivor(fileProperty.Name, mutant));
                         break;
                     case "timeout": summary.TimedOut++; break;
                     case "nocoverage":
@@ -173,6 +173,14 @@ internal static class MutationService
                     case "ignored": summary.Ignored++; break;
                     case "compileerror":
                     case "compile_error": summary.CompileErrors++; break;
+                }
+
+                SurvivingMutant entry = CreateSurvivor(fileProperty.Name, mutant, normalizedStatus);
+                summary.AllMutants.Add(entry);
+
+                if (normalizedStatus == "Survived")
+                {
+                    summary.Survivors.Add(entry);
                 }
             }
         }
@@ -190,19 +198,51 @@ internal static class MutationService
         return summary;
     }
 
+    private static string NormalizeStatus(string status)
+    {
+        switch (status.ToLowerInvariant())
+        {
+            case "killed": return "Killed";
+            case "survived": return "Survived";
+            case "timeout": return "Timeout";
+            case "nocoverage":
+            case "no_coverage": return "No coverage";
+            case "ignored": return "Ignored";
+            case "compileerror":
+            case "compile_error": return "Compile error";
+            default: return string.IsNullOrWhiteSpace(status) ? "Unknown" : status;
+        }
+    }
+
     private static SurvivingMutant CreateSurvivor(
         string file,
-        JToken mutant)
+        JToken mutant,
+        string status)
     {
         int line =
             mutant["location"]?["start"]?["line"]?.Value<int>() ?? 0;
+
+        string mutatorName =
+            mutant["mutatorName"]?.Value<string>() ?? string.Empty;
+
+        string description =
+            mutant["description"]?.Value<string>() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            description =
+                string.IsNullOrWhiteSpace(mutatorName)
+                    ? $"Mutation {status.ToLowerInvariant()}."
+                    : $"{mutatorName} mutation {status.ToLowerInvariant()}.";
+        }
 
         return new SurvivingMutant
         {
             File = file,
             Line = line,
-            Mutator = mutant["mutatorName"]?.Value<string>() ?? string.Empty,
-            Description = mutant["description"]?.Value<string>() ?? string.Empty
+            Mutator = mutatorName,
+            Description = description,
+            Status = status
         };
     }
 

@@ -11,13 +11,65 @@ internal static class JsonServices
 {
     public static QuackCheckResult Deserialize(string json)
     {
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        string extracted = ExtractJsonObject(json);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(extracted));
         var serializer = new DataContractJsonSerializer(typeof(QuackCheckResult));
         return (QuackCheckResult)(serializer.ReadObject(stream)
             ?? throw new InvalidDataException("QUACK returned empty JSON."));
     }
 
-    public static DashboardModel Build(QuackCheckResult result, string branch, string rawJson, string repository = null)
+    private static QuackWatchResult DeserializeWatch(string json)
+    {
+        string extracted = ExtractJsonObject(json);
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(extracted));
+        var serializer = new DataContractJsonSerializer(typeof(QuackWatchResult));
+        return (QuackWatchResult)(serializer.ReadObject(stream)
+            ?? throw new InvalidDataException("QUACK returned empty JSON."));
+    }
+
+    /// <summary>
+    /// "watch --once --json" writes a progress spinner (e.g. "reviewing
+    /// changes...") to the same stream before the JSON payload. This strips
+    /// any such preamble/trailing noise by extracting the outermost JSON
+    /// object delimited by the first '{' and the matching last '}'.
+    /// </summary>
+    private static string ExtractJsonObject(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+
+        int start = text.IndexOf('{');
+        int end = text.LastIndexOf('}');
+        if (start < 0 || end < start)
+        {
+            return text;
+        }
+
+        return text.Substring(start, end - start + 1);
+    }
+
+    /// <summary>
+    /// "watch --once --json" performs the AI review but does not evaluate the
+    /// local quality gate; "check --json" evaluates the gate (blocked,
+    /// findings, testGuidance) but never runs AI. This copies the AI review
+    /// from the watch output onto the check result so neither is lost.
+    /// </summary>
+    public static string MergeAiReview(string checkJson, string watchJson)
+    {
+        QuackCheckResult checkResult = Deserialize(checkJson);
+        QuackWatchResult watchResult = DeserializeWatch(watchJson);
+
+        checkResult.AiReview = watchResult.AiReview;
+
+        var serializer = new DataContractJsonSerializer(typeof(QuackCheckResult));
+        using var stream = new MemoryStream();
+        serializer.WriteObject(stream, checkResult);
+        return Encoding.UTF8.GetString(stream.ToArray());
+    }
+
+    public static DashboardModel Build(QuackCheckResult result, string branch, string rawJson, string repository = null, System.Collections.Generic.IEnumerable<string> changedFiles = null)
     {
         var model = new DashboardModel
         {
@@ -26,6 +78,11 @@ internal static class JsonServices
             Status = result.Blocked ? "Blocked" : "Completed",
             RawJson = rawJson
         };
+
+        if (changedFiles != null)
+        {
+            foreach (string file in changedFiles) AddUnique(model.AffectedFiles, file);
+        }
 
         QuackAiReview? ai = result.AiReview;
         if (ai?.Available == true)
@@ -60,6 +117,15 @@ internal static class JsonServices
             model.RiskColour = "#6B7280";
             model.Summary = result.AiError;
         }
+        else if (ai != null)
+        {
+            // The AI review ran but did not come back as available and no
+            // explicit error was reported - surface that instead of leaving
+            // the stale "No review has been run." default in place.
+            model.Risk = "AI UNAVAILABLE";
+            model.RiskColour = "#6B7280";
+            model.Summary = "AI review did not return a summary for this run.";
+        }
 
         foreach (QuackFinding item in result.Findings)
         {
@@ -81,8 +147,14 @@ internal static class JsonServices
             AddUnique(model.AffectedFiles, item.SourceFile);
         }
 
-        if (ai == null && result.Findings.Count == 0)
-            model.Summary = result.TestGuidance.Count > 0 ? "No blocking findings. Review test guidance." : "No blocking findings were detected.";
+        if (ai?.Available != true && string.IsNullOrWhiteSpace(result.AiError))
+        {
+            model.Summary = result.Findings.Count > 0
+                ? $"{result.Findings.Count} local finding(s) detected. AI review was not available."
+                : result.TestGuidance.Count > 0
+                    ? "No blocking findings. Review test guidance. AI review was not available."
+                    : "No blocking findings were detected. AI review was not available.";
+        }
 
         return model;
     }

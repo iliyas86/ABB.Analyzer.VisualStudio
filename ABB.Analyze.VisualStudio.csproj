@@ -18,6 +18,9 @@
     <Content Include="Quack\quack.exe" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".github\copilot-instructions.md" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectCapability Include="CreateVsixContainer" />
     <Reference Include="System.Design" />
     <Reference Include="System.Net.Http" />

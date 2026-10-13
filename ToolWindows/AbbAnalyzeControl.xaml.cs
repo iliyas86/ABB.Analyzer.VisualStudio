@@ -3,6 +3,7 @@ using ABB.Analyze.VisualStudio.Services;
 using Microsoft.VisualStudio.Shell;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.Serialization.Json;
 using System.Text;
@@ -10,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 
 namespace ABB.Analyze.VisualStudio.ToolWindows;
@@ -22,6 +24,8 @@ public partial class AbbAnalyzeControl : UserControl
     private AzureDevOpsWorkItem? _azureDevOpsWorkItem;
     private List<StoryCheckpoint> _checkpoints = new();
     private string _checkpointEvaluationModel = string.Empty;
+    private string _mutationScope = "Entire solution";
+    private ICollectionView? _mutationView;
 
     public AbbAnalyzeControl()
     {
@@ -405,11 +409,17 @@ public partial class AbbAnalyzeControl : UserControl
                 JsonServices.Deserialize(
                     process.Output);
 
+            System.Collections.Generic.List<string> changedFiles =
+                GitRepositoryService.GetAllChangedFiles(
+                    repository);
+
             DashboardModel next =
                 JsonServices.Build(
                     result,
                     branch,
-                    process.Output);
+                    process.Output,
+                    repository,
+                    changedFiles);
 
             await ThreadHelper.JoinableTaskFactory
                 .SwitchToMainThreadAsync();
@@ -1110,6 +1120,51 @@ public partial class AbbAnalyzeControl : UserControl
             "PR description copied to clipboard.";
     }
 
+    private void ExportMutationButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (_mutationSummary == null)
+        {
+            OperationStatus.Text = "Run mutation testing before exporting a report.";
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Export Mutation Score",
+            Filter = "CSV files (*.csv)|*.csv",
+            DefaultExt = ".csv",
+            AddExtension = true,
+            FileName = "mutation-score.csv",
+            OverwritePrompt = true
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        try
+        {
+            string csv = MutationCsvExportService.BuildCsv(
+                _mutationSummary,
+                _model.Repository,
+                _mutationScope);
+
+            File.WriteAllText(
+                dialog.FileName,
+                csv,
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+
+            OperationStatus.Text = "Mutation score exported to " + dialog.FileName;
+        }
+        catch (Exception exception)
+        {
+            OperationStatus.Text = "Mutation export failed: " + exception.Message;
+        }
+    }
+
     private void RunMutationTesting_Click(
     object sender,
     RoutedEventArgs e) => RunMutationTestingAsync(changedFilesOnly: false);
@@ -1206,6 +1261,10 @@ public partial class AbbAnalyzeControl : UserControl
 
             _mutationSummary =
                 summary;
+            _mutationScope = changedFilesOnly
+                ? "Modified files only"
+                : "Entire solution";
+            ExportMutationButton.IsEnabled = true;
 
             MutationScoreText.Text =
                 summary.Status;
@@ -1224,8 +1283,17 @@ public partial class AbbAnalyzeControl : UserControl
                     ? null
                     : summary.ReportPath;
 
+            SurvivorsGrid.ItemsSource = null;
+
+            _mutationView =
+                CollectionViewSource.GetDefaultView(
+                    summary.AllMutants);
+
+            _mutationView.Filter =
+                MutationFilter;
+
             SurvivorsGrid.ItemsSource =
-                summary.Survivors;
+                _mutationView;
 
             SetMutationViewState(
                 MutationViewState.Completed);
@@ -1382,6 +1450,26 @@ public partial class AbbAnalyzeControl : UserControl
                 mutant.IsAnalyzing = false;
             }
         }
+    }
+
+    private void MutationFilterCombo_SelectionChanged(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        _mutationView?.Refresh();
+    }
+
+    private bool MutationFilter(object item)
+    {
+        if (MutationFilterCombo?.SelectedItem is not ComboBoxItem selected ||
+            !(selected.Content is string filter) ||
+            string.Equals(filter, "All", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return item is SurvivingMutant mutant &&
+               string.Equals(mutant.Status, filter, StringComparison.OrdinalIgnoreCase);
     }
 
     private void SurvivorsGrid_PreviewMouseLeftButtonUp(

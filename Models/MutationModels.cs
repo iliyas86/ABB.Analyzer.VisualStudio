@@ -17,6 +17,7 @@ internal sealed class MutationSummary
     public string ReportPath { get; set; } = string.Empty;
     public string Status => Total == 0 ? "No scored mutants" : $"{Score:0.0}%";
     public ObservableCollection<SurvivingMutant> Survivors { get; } = new();
+    public ObservableCollection<SurvivingMutant> AllMutants { get; } = new();
 }
 
 internal sealed class SurvivingMutant : INotifyPropertyChanged
@@ -28,6 +29,7 @@ internal sealed class SurvivingMutant : INotifyPropertyChanged
     public string File { get; set; } = string.Empty;
     public int Line { get; set; }
     public string Mutator { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
 
     public string Description
     {

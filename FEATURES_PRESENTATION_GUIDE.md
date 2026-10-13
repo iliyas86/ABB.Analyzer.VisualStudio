@@ -1,172 +1,230 @@
-# ABB Analyze Feature Presentation Guide
+# ABB Analyze: Simple Feature Guide
 
-## At a Glance
+## 1. What Is ABB Analyze?
 
-ABB Analyze is a Visual Studio extension for reviewing repository changes without leaving the IDE. It combines local quality checks, an optional Copilot-backed review, test guidance and execution, mutation testing, pull-request summary generation, and an Azure Boards checkpoint workflow.
+ABB Analyze is an add-on for Visual Studio that helps developers review code changes.
 
-The extension presents results in a dockable tool window. It uses the repository open in Visual Studio and displays the active repository and branch in its header.
+- It puts code review tools inside Visual Studio.
+- It can run local checks and optional Copilot reviews.
+- It can suggest tests and run supported test commands.
+- It can connect a code change to an Azure Boards work item.
+- It can help show whether the current changes appear to meet the work item's checkpoints.
 
-## Suggested Opening
+## 2. Main Features
 
-> ABB Analyze brings code review, test guidance, and change verification into Visual Studio. A developer can run a fast local check, ask a selected Copilot model to review changes, inspect findings and test recommendations, and use Azure Boards acceptance criteria as a checklist against the current Git diff.
+### 2.1 Local Check
 
-## Main Review Workflow
+- Runs a quick check of the current Git repository using the bundled QUACK tool.
+- Shows the results in Visual Studio.
+- Reports findings and test suggestions when they are available.
+- Does not ask Copilot to perform the separate AI review.
 
-### Local Check
+**Why it helps:** Developers can get a quick first look at the changes before asking for an AI review.
 
-**What it does:** Runs QUACK's local JSON check against the current repository and displays the returned quality findings and test guidance.
+### 2.2 Copilot Code Review
 
-**What appears in the tool window:**
+- Runs QUACK's Copilot-backed review flow.
+- Uses the selected Copilot model, or QUACK's default model if none is selected.
+- Can show a risk level, summary, reasons, affected files, and test suggestions.
+- Shows local findings separately from Copilot findings.
+- If Copilot is unavailable, the local review can still show results.
 
-- Repository, branch, and review status
-- Summary and risk information when provided by the analysis result
-- Reasons and affected files
-- Structured findings with severity, source, rule, location, and message
-- Suggested tests and supported commands
-- Raw JSON returned by QUACK
+**Why it helps:** It gives the developer another review perspective, alongside the local checks.
 
-The local check and Copilot analysis are separate actions. The local check does not request the optional Copilot review.
+### 2.3 Choose a Copilot Model
 
-### Copilot Analysis
+- ABB Analyze can load the Copilot models available to QUACK.
+- Choose a model from the Model list when one is available.
+- Use **Refresh Models** to load or reload the list.
+- If model discovery is not available, ABB Analyze uses the configured default model.
 
-**What it does:** Runs QUACK's review flow and then loads its structured check result. The selected model is passed to QUACK; if no specific model is selected, QUACK's configured default is used.
+**Why it helps:** The user can select a preferred model without changing the review workflow.
 
-**What it provides:** An AI-generated risk, summary, reasons, affected files, and test recommendations when the provider returns an available review. Findings can come from either local rules or the Copilot review and are labelled by source.
+## 3. Review Screens
 
-AI review availability depends on the Copilot/QUACK configuration and authentication on the user's machine. The UI can fall back to local findings if AI review is unavailable.
+### 3.1 Overview
 
-### Model Selection
+- Shows the review summary, risk, and reasons.
+- Shows the repository and branch being reviewed.
+- Lists affected files.
+- Double-click an affected file to open it in Visual Studio.
 
-The model selector is populated from QUACK model discovery. The user can choose an available model for Copilot-backed analysis and Azure Boards checkpoint actions. If discovery is unavailable, the extension selects the QUACK default. Refresh Models retries discovery and loads the available model list.
+### 3.2 Findings
 
-## Review Views and Actions
+- Shows each reported issue in a table.
+- Displays severity, source, rule, file/location, and message.
+- Double-click a finding with a file location to open the code.
 
-### Overview
+### 3.3 Suggested Tests
 
-Shows the review summary, reasons, affected files, repository and branch context, and overall risk indicator. Double-click an affected file to open it in Visual Studio.
+- Shows which source file a test suggestion relates to.
+- Shows a suggested test command and recommendation.
+- Lets the user edit the command, open a related file, or copy the command.
+- Provides a Run action for supported test commands.
+- Only supported `dotnet test` and `pytest` command forms are allowed to run. Shell chaining and redirection are rejected.
+- If a test file already exists but was not included in the staged changes, ABB Analyze can look for it by name to avoid incorrectly calling it a coverage gap.
 
-### Findings
+**Why it helps:** Developers can see a suggested next test and run it without leaving the tool window.
 
-Shows findings in a table with severity, source, rule, location, and message. Double-click a finding with a file location to navigate to the source location.
+### 3.4 Test Results
 
-### Suggested Tests
+- Shows the command that ran and its exit code.
+- Shows whether the tests passed, failed, or matched no tests.
+- Shows the test output and error output.
+- A test command stops if it runs longer than ten minutes.
 
-Shows source files, recommended tests or commands, status, recommendation, and row actions to open a source/test file, copy its command/path, or run an approved command. The command field is editable so a developer can adapt a recommendation.
+### 3.5 Raw JSON
 
-For security, execution is limited to supported `dotnet test` and `pytest` command forms; shell chaining and redirection characters are rejected. Test execution has a ten-minute timeout. Results and error output are shown in Test Results.
+- Shows the raw result returned by QUACK.
+- Useful when investigating or checking the detailed analysis response.
+- The toolbar copy button copies the JSON.
 
-The extension also checks the repository for an existing conventionally named test file so an unchanged test file is not automatically mistaken for a coverage gap just because QUACK did not see it in the staged diff.
+## 4. Helpful Review Actions
 
-### Test Results
+### 4.1 Copy Summary
 
-Displays the command, exit code, success/failure or no-matching-tests message, standard output, and error output from the most recent test run.
+- Creates a short Markdown review summary.
+- Includes risk, repository, summary, reasons, and test guidance.
+- Copies the text to the clipboard for a pull request or review note.
 
-### Raw JSON
+### 4.2 Generate PR Description
 
-Displays the raw QUACK response for troubleshooting or integration inspection. The toolbar copy action copies the JSON to the clipboard.
+- Creates a Markdown pull-request description from the current review.
+- Includes mutation-testing information if mutation testing has been run.
+- Copies the description to the clipboard.
 
-### Copy Summary
+### 4.3 Open a File from a Finding
 
-Copies a Markdown review summary containing risk, repository, summary, reasons, and test guidance. It can be pasted into a pull request or another review document.
+- Double-click a finding or affected file to open it in Visual Studio.
+- Suggested-test rows also provide actions to open a file or copy a test command/path.
 
-### Generate PR Description
+## 5. Mutation Testing
 
-Generates and copies a Markdown pull-request description from the current analysis model. When mutation results exist, mutation metrics are included as well.
+Mutation testing makes small, artificial changes to code and checks whether tests detect them.
 
-### Navigation
+- Run it for the whole solution or for modified files only.
+- Review the mutation score and counts for killed, surviving, timed-out, no-coverage, ignored, and compile-error mutations.
+- Inspect surviving mutations by file, line, mutator, and description.
+- Select a survivor to navigate to its source when possible.
+- Choose **Export CSV** to save the score, mutation counts, and surviving-mutant details for Excel or other spreadsheet tools.
+- ABB Analyze reads the Stryker.NET JSON report and adds the source line when it can find it.
+- Stryker.NET must be available to `dotnet` or installed through the repository's local tool setup.
 
-Double-clicking a finding or affected file opens that location in Visual Studio. Suggested-test rows provide actions to open a relevant file or copy a command/path.
+**How to explain the score:** A stronger score generally means more of the tested code changes were caught by tests. It is a useful test-strength signal, not proof that a feature is correct.
 
-### Theme and Operation Feedback
+## 6. Azure Boards: Story-to-Code Checkpoints
 
-The Azure Boards controls use Visual Studio theme resources so their surfaces and text follow the active IDE theme. Successful Azure Boards actions show a small green check on their button. Retrying an action or changing inputs clears checks that no longer represent the current state.
+The Azure Boards view connects a work item to the current code changes.
 
-## Mutation Testing
+### 6.1 Connect to Azure DevOps
 
-The extension can run Stryker.NET mutation testing for the selected solution/project and display a mutation summary with killed, surviving, timed-out, no-coverage, ignored, and compile-error counts. Surviving mutants can be inspected by file, line, mutator, and description; selecting a survivor navigates to its source.
+- Enter an Azure DevOps Personal Access Token (PAT) in the masked field.
+- Use an organization-scoped token with only **Work Items (Read)** access and a short expiry.
+- ABB Analyze clears the field after connecting.
+- The token stays in memory for the current Visual Studio session; it is not saved in settings, source files, or logs.
+- The sample organization, project, and work item are `ABB-BCI-PCP`, `PCP`, and `1443229`. These can be changed.
 
-Two run modes are available:
+### 6.2 Fetch the Work Item
 
-- **Entire Solution:** runs Stryker without a changed-file scope.
-- **Modified Files Only:** asks Stryker to scope analysis from `HEAD` using its Git integration.
+- Fetches the work item's title and type.
+- Shows its description and acceptance criteria, when present.
+- For bugs, shows repro steps when present.
+- Lets the user review the story before creating checkpoints.
 
-The extension reads Stryker's JSON report and enriches surviving mutants with the source line when available. Mutation testing requires Stryker.NET to be available to `dotnet` or installed through the repository's local tool manifest. Mutation score is a test-strength signal; it is not proof that a feature meets its acceptance criteria.
+### 6.3 Create Checkpoints Locally
 
-## Azure Boards Checkpoint Workflow
+Choose **Local Checkpoint** to make an editable list from the work item text.
 
-The Azure Boards view connects to Azure DevOps Services, retrieves a work item, creates or drafts checkpoints, loads the current Git diff, and evaluates the checkpoints with Copilot.
+- Uses acceptance criteria first.
+- If there are no acceptance criteria, uses bug repro steps.
+- If neither is present, uses the description.
+- This is a simple line-based conversion. It does not understand the meaning of the story.
+- Review and edit the list so it contains clear requirements, not background or vague goals.
 
-### Connect with PAT
+### 6.4 Draft Checkpoints with Copilot
 
-The user enters a masked Azure DevOps Personal Access Token. The recommended configuration is an organization-scoped PAT with only **Work Items (Read)** access and the shortest practical expiration. The extension clears the input after connecting and keeps the token in memory for the current Visual Studio session; it does not write the PAT to settings, source files, or logs.
+Choose **Copilot Checkpoint** to ask the selected model to suggest concise, testable checkpoints.
 
-The default sample fields point to organization `ABB-BCI-PCP`, project `PCP`, and work item `1443229`. They can be changed to another Azure DevOps Services work item.
+- The suggestions are editable.
+- They start as **Not evaluated**.
+- Review them before evaluating; Copilot suggestions may need correction.
 
-### Fetch Work Item
+### 6.5 Load the Current Git Diff
 
-Fetches the work item title, type, description, acceptance criteria, and bug repro steps where those fields are present. The content is displayed for review before checkpoints are made.
+Choose **Refresh diff** to display current saved Git changes.
 
-### Local Checkpoint
+- Includes staged changes and unstaged changes to tracked files.
+- Includes untracked text files.
+- Does not include binary untracked files.
+- The amount of diff sent to Copilot is limited. Changes left out of the prompt cannot be used as evidence.
 
-Builds editable checkpoint rows from the work item's acceptance criteria; if those are absent, it uses bug repro steps, then description text as a fallback. This is a local line-based extraction, not AI interpretation. Review and edit the rows because prose in a description may include goals or background rather than testable requirements.
+### 6.6 Evaluate with Copilot
 
-### Copilot Checkpoint
+Choose **Evaluate** to compare the checkpoints with the current diff.
 
-Asks the selected Copilot model to draft concise candidate gates from the work item. The generated rows are editable and start as **Not evaluated**. Treat these as suggestions: validate that each gate is supported by the actual story before evaluating it.
+- ABB Analyze asks for confirmation before sending work-item text and changed code to GitHub Copilot.
+- Copilot uses the selected model and returns a result and evidence for each checkpoint.
+- The GitHub Copilot CLI must be installed and signed in for the current Windows user.
+- Copilot tools and built-in MCP servers are disabled for this evaluation. It is asked to use only the information supplied by ABB Analyze.
+- The Azure DevOps PAT is not included in the Copilot request.
 
-### Refresh Diff
+Each checkpoint can have one of three results:
 
-Loads the current saved Git working-tree diff, including staged changes, unstaged tracked changes, and untracked text files. Binary untracked files are omitted. The diff preview is capped for display, and Copilot evaluation also bounds the prompt size; omitted changes must not be treated as evidence.
+- **Met:** The changed code appears to support the checkpoint.
+- **Not met:** The diff directly conflicts with the checkpoint or shows an implementation that fails it.
+- **Inconclusive:** There is not enough reliable information to decide.
 
-### Evaluate
+For **Met** or **Not met**, Copilot must provide a file name and an exact quote from a line added in the diff. ABB Analyze checks that the file and quote really appear in the diff. If the evidence is missing or cannot be checked, the result becomes **Inconclusive**.
 
-After the user confirms, the extension sends the work-item text, checkpoints, and current Git diff to the selected Copilot model. The GitHub Copilot CLI must be installed and signed in for the current Windows user. For this task, the extension disables Copilot's tools and built-in MCP servers; the model is asked to judge only the supplied context.
-
-Each checkpoint receives one of these statuses:
-
-- **Met:** Copilot judges the supplied changed code to support the checkpoint.
-- **Not met:** Copilot judges the supplied diff to directly contradict the checkpoint or show an attempted implementation that fails it.
-- **Inconclusive:** The supplied evidence is insufficient, incomplete, or not verifiable.
-
-For a decisive result, Copilot must cite a file and an exact quote from an added diff line. The extension verifies that the file and quote occur in the submitted diff. Missing, malformed, or unverifiable evidence is downgraded to **Inconclusive**. The Evidence column wraps text and offers the full text on hover.
-
-### Overall Gate
+### 6.7 Understand the Overall Gate
 
 - **GATE PASSED:** every checkpoint is Met.
 - **GATE FAILED:** at least one checkpoint is Not met.
-- **REVIEW REQUIRED:** at least one checkpoint is Inconclusive or has not been evaluated.
+- **REVIEW REQUIRED:** one or more checkpoints are Inconclusive or have not been evaluated.
 
-Editing a checkpoint, fetching another work item, or refreshing the diff clears affected prior evaluations so a stale pass cannot be mistaken for a result on new inputs. Green/red decisions are AI-assisted review signals, not formal proof or a replacement for tests and engineering review.
+If the user edits a checkpoint, fetches another work item, or refreshes the diff, old results are cleared so an earlier pass is not mistaken for a result on the new input.
 
-### Data and Consent
+**Important:** Copilot's result is an aid to review, not proof. Check the cited code and run relevant tests before relying on the gate.
 
-The extension asks for confirmation before sending work-item text and changed code to GitHub Copilot for gate drafting/evaluation. The Azure DevOps PAT is used only for read-only work-item retrieval; it is not sent to Copilot as part of the prompt.
+## 7. Completion Checks, Theme, and Cancel
 
-## Cancellation and Responsiveness
+- A green check appears on an Azure Boards action button after that action succeeds.
+- Starting the action again clears its old check until the new attempt succeeds.
+- Changing the work item, checkpoints, or diff clears checks that no longer apply.
+- Azure Boards colors follow the active Visual Studio theme.
+- Long-running repository analysis, Copilot checkpoint drafting/evaluation, and mutation testing can be cancelled.
+- Test commands have a ten-minute timeout, but are not cancelled through the Cancel button.
 
-Local analysis, Copilot analysis, Copilot checkpoint drafting/evaluation, and mutation testing support cancellation. Test commands are bounded by a ten-minute timeout but are not connected to the Cancel button. The UI disables relevant actions while supported operations run and reports completion, cancellation, or failure in the status area. A cancelled or failed checkpoint evaluation does not retain a previous pass as though it applied to the attempted run.
+## 8. Simple Demo Plan
 
-## Presentation Demo: Work Item 1443229
+1. Open the ABB Analyze tool window in Visual Studio.
+2. Run **Local Check** and point out the summary, risk, and findings.
+3. Run **Copilot Analysis** and show the model selector.
+4. Open **Suggested Tests** and show a recommendation and its available actions.
+5. Open **Azure Boards** and connect with a read-only PAT.
+6. Fetch work item `1443229`.
+7. Choose **Local Checkpoint** or **Copilot Checkpoint**, then review the checkpoint list.
+8. Choose **Refresh diff** to show the current changes.
+9. Choose **Evaluate**, confirm sending the story and code to Copilot, then review the results and evidence.
+10. Explain that all checkpoints must be Met for a pass; Not met fails the gate; Inconclusive means a person must review.
+11. Optionally show mutation testing and the PR description action.
 
-1. Open the ABB Analyze tool window from the Visual Studio **View** selector.
-2. Select **Azure Boards**.
-3. Connect using an organization-scoped, read-only PAT, then fetch work item 1443229.
-4. Show the story fields and explain that the local builder extracts existing criteria/repro text, while Copilot Checkpoint drafts candidate gates when the story needs interpretation.
-5. Review or edit the gates, then select **Refresh diff** to show the current saved changes.
-6. Select **Evaluate**, confirm the external AI data transfer, and inspect statuses and cited evidence.
-7. Explain the overall gate: only all-Met passes; any Not met fails; incomplete evidence requires review.
-8. Return to Overview/Findings or Suggested Tests to demonstrate how the Azure Boards view complements, rather than replaces, the normal code review and test workflows.
+## 9. What Is Needed
 
-## Prerequisites and Boundaries
+- Windows and a compatible Visual Studio installation with ABB Analyze installed.
+- A Git repository open as the active Visual Studio solution.
+- An Azure DevOps Services PAT with **Work Items (Read)** access for the Azure Boards workflow.
+- The GitHub Copilot CLI installed and signed in for Copilot analysis and checkpoint actions.
+- .NET test tools, pytest, or Stryker.NET only for the test or mutation-testing features that use them.
 
-- Windows and a compatible Visual Studio installation with the ABB Analyze VSIX installed.
-- A Git repository opened as the active Visual Studio solution for repository analysis and diff loading.
-- A valid Azure DevOps Services PAT with Work Items (Read) scope to fetch boards work items.
-- The GitHub Copilot CLI installed and signed in, plus an available selected model, for Copilot analysis and checkpoint actions.
-- .NET test tooling for `dotnet test`, Python/pytest for `pytest`, and Stryker.NET for mutation testing, when those workflows are used.
+## 10. Current Limits to Mention
 
-Azure Boards integration currently targets Azure DevOps Services; Azure DevOps Server/on-premises authentication is not covered by this workflow. Checkpoint evaluation is based on supplied work-item text and a bounded current diff. It does not inspect the whole repository, run tests automatically as part of the gate, or prove that runtime behavior satisfies a requirement. Use test results, relevant existing code, and human review to close gaps that the diff cannot establish.
+- Azure Boards connection is for Azure DevOps Services; Azure DevOps Server/on-premises authentication is not covered.
+- Copilot checkpoint evaluation only sees the work-item text, checkpoint list, and bounded Git diff that ABB Analyze sends. It does not inspect the entire repository.
+- The checkpoint evaluation does not run tests automatically.
+- A checkpoint may remain Inconclusive if the diff does not give enough verifiable evidence.
+- AI results need developer review; they do not replace tests or engineering judgement.
 
-## Presenter Closing
+## Short Closing Statement
 
-> ABB Analyze gives developers a single Visual Studio workspace for fast local checks, Copilot-assisted review, test suggestions and execution, mutation testing, and work-item traceability. Its Azure Boards gate makes the relationship between story checkpoints and changed code visible, while preserving an inconclusive state when the evidence is not strong enough to claim success or failure.
+> ABB Analyze puts code review, test guidance, mutation testing, and Azure Boards story checkpoints into Visual Studio. It helps developers connect a work item to changed code and highlights where evidence is clear, missing, or needs human review.

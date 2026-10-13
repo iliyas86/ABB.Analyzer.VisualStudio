@@ -91,9 +91,49 @@ internal static class QuackRunner
                     : watchResult.Error);
         }
 
-        return await CheckAsync(
-            repository,
-            cancellationToken);
+        // "watch" performs the AI review (populates aiReview/filesChanged/risk)
+        // but does not evaluate the local quality gate. "check" evaluates the
+        // local gate (blocked/findings/testGuidance) but never runs AI.
+        // Both results are needed, so the AI review from "watch" must not be
+        // discarded - it is merged on top of the "check" result.
+        ProcessResult checkResult =
+            await CheckAsync(
+                repository,
+                cancellationToken);
+
+        return MergeWatchIntoCheck(
+            checkResult,
+            watchResult);
+    }
+
+    private static ProcessResult MergeWatchIntoCheck(
+        ProcessResult checkResult,
+        ProcessResult watchResult)
+    {
+        if (string.IsNullOrWhiteSpace(checkResult.Output) ||
+            string.IsNullOrWhiteSpace(watchResult.Output))
+        {
+            return checkResult;
+        }
+
+        try
+        {
+            string mergedJson =
+                ABB.Analyze.VisualStudio.Services.JsonServices.MergeAiReview(
+                    checkResult.Output,
+                    watchResult.Output);
+
+            return new ProcessResult(
+                checkResult.ExitCode,
+                mergedJson,
+                checkResult.Error);
+        }
+        catch
+        {
+            // If merging fails for any reason, fall back to the check-only
+            // result rather than losing the output entirely.
+            return checkResult;
+        }
     }
 
     private static async Task<ProcessResult> RunAsync(

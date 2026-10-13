@@ -17,6 +17,7 @@ The extension uses the **QUACK** analysis engine. A tested, self-contained `quac
 - Display test output inside the tool window
 - Generate pull-request descriptions
 - Run Stryker.NET mutation testing and review surviving mutants
+- Export mutation score summary and surviving-mutant details to CSV
 - Connect to Azure DevOps Services, fetch a work item, and turn its acceptance criteria into editable checkpoints
 - Preview saved staged, unstaged, and untracked Git changes alongside the checkpoints
 - Evaluate checkpoints with the selected GitHub Copilot model and review cited diff evidence

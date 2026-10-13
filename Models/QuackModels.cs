@@ -19,6 +19,15 @@ internal sealed class QuackCheckResult
 }
 
 [DataContract]
+internal sealed class QuackWatchResult
+{
+    [DataMember(Name = "repository")] public string Repository { get; set; } = string.Empty;
+    [DataMember(Name = "filesChanged")] public int FilesChanged { get; set; }
+    [DataMember(Name = "aiReview")] public QuackAiReview? AiReview { get; set; }
+}
+
+
+[DataContract]
 internal sealed class QuackFinding
 {
     [DataMember(Name = "severity")] public string Severity { get; set; } = string.Empty;

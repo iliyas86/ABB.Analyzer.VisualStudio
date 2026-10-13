@@ -29,6 +29,28 @@ internal static class GitRepositoryService
     /// <summary>Returns repo-relative, mutation-worthy .cs files that are currently modified/staged/untracked or differ from the base branch.</summary>
     public static List<string> GetChangedSourceFiles(string repository)
     {
+        return CollectChangedFiles(repository, includeBaseBranchDiff: true)
+            .Where(f => IsMutationCandidate(f, repository))
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Returns every repo-relative file currently reflected in the working tree
+    /// (staged, unstaged, untracked/renamed) - matching exactly what Visual
+    /// Studio's "Git Changes" window shows. Unlike <see cref="GetChangedSourceFiles"/>,
+    /// this does not include the broader base-branch diff, since that can surface
+    /// files already committed earlier on the branch that are no longer pending changes.
+    /// </summary>
+    public static List<string> GetAllChangedFiles(string repository)
+    {
+        return CollectChangedFiles(repository, includeBaseBranchDiff: false)
+            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static HashSet<string> CollectChangedFiles(string repository, bool includeBaseBranchDiff)
+    {
         var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         void AddPath(string rawPath)
@@ -70,14 +92,19 @@ internal static class GitRepositoryService
         AddNameOnlyLines(Git(repository, "diff --name-only --cached"));
         AddNameOnlyLines(Git(repository, "ls-files --others --exclude-standard"));
 
-        // 3. Everything that differs from a detected base branch.
-        string? baseCommit = FindBaseCommit(repository);
-        if (!string.IsNullOrWhiteSpace(baseCommit))
+        // 3. Everything that differs from a detected base branch (opt-in only,
+        // since this can include changes already committed earlier on the
+        // branch that are no longer part of the pending working-tree diff).
+        if (includeBaseBranchDiff)
         {
-            string? branchDiff = Git(repository, $"diff --name-only {baseCommit}...HEAD");
-            AddNameOnlyLines(!string.IsNullOrWhiteSpace(branchDiff)
-                ? branchDiff
-                : Git(repository, $"diff --name-only {baseCommit} HEAD"));
+            string? baseCommit = FindBaseCommit(repository);
+            if (!string.IsNullOrWhiteSpace(baseCommit))
+            {
+                string? branchDiff = Git(repository, $"diff --name-only {baseCommit}...HEAD");
+                AddNameOnlyLines(!string.IsNullOrWhiteSpace(branchDiff)
+                    ? branchDiff
+                    : Git(repository, $"diff --name-only {baseCommit} HEAD"));
+            }
         }
 
         // 4. Fall back to the most recent commit if nothing else was detected.
@@ -89,10 +116,7 @@ internal static class GitRepositoryService
                 : Git(repository, "log -1 --name-only --format="));
         }
 
-        return files
-            .Where(f => IsMutationCandidate(f, repository))
-            .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return files;
     }
 
     private static string? FindBaseCommit(string repository)

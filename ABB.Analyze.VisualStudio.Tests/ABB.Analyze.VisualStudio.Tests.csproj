@@ -36,6 +36,8 @@
     <Compile Include="..\Services\AzureDevOpsWorkItemService.cs" Link="Sources\AzureDevOpsWorkItemService.cs" />
     <Compile Include="..\Services\CheckpointEvaluationService.cs" Link="Sources\CheckpointEvaluationService.cs" />
     <Compile Include="..\Services\CopilotCliRunner.cs" Link="Sources\CopilotCliRunner.cs" />
+    <Compile Include="..\Models\MutationModels.cs" Link="Sources\MutationModels.cs" />
+    <Compile Include="..\Services\MutationCsvExportService.cs" Link="Sources\MutationCsvExportService.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="System.Net.Http" />
