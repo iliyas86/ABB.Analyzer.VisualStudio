@@ -1120,6 +1120,73 @@ public partial class AbbAnalyzeControl : UserControl
             "PR description copied to clipboard.";
     }
 
+    private async void QaSummaryButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        if (_mutationSummary == null || _mutationSummary.Survivors.Count == 0)
+        {
+            OperationStatus.Text = "Run mutation testing and ensure there are surviving mutants before summarizing.";
+            return;
+        }
+
+        if (_operationCancellation != null)
+        {
+            OperationStatus.Text = "Another operation is already running.";
+            return;
+        }
+
+        _operationCancellation = new CancellationTokenSource();
+
+        QaSummaryButton.IsEnabled = false;
+        ExportMutationButton.IsEnabled = false;
+        OperationStatus.Text = "Sending surviving mutants to GitHub Copilot...";
+
+        QaSummaryText.Text = string.Empty;
+        QaSummaryPanel.Visibility = Visibility.Visible;
+        QaSummaryRow.Height = new GridLength(220);
+
+        try
+        {
+            string result = await MutationQaSummaryRunner.SummarizeAsync(
+                _mutationSummary,
+                _model.Repository,
+                _mutationScope,
+                _operationCancellation.Token);
+
+            await ThreadHelper.JoinableTaskFactory
+                .SwitchToMainThreadAsync(
+                    _operationCancellation.Token);
+
+            QaSummaryText.Text = result;
+            OperationStatus.Text = "Copilot QA impact summary generated.";
+        }
+        catch (Exception exception)
+        {
+            await ThreadHelper.JoinableTaskFactory
+                .SwitchToMainThreadAsync();
+
+            QaSummaryText.Text = "Failed to generate QA summary: " + exception.Message;
+            OperationStatus.Text = "Copilot QA summary failed: " + exception.Message;
+        }
+        finally
+        {
+            _operationCancellation?.Dispose();
+            _operationCancellation = null;
+
+            QaSummaryButton.IsEnabled = true;
+            ExportMutationButton.IsEnabled = true;
+        }
+    }
+
+    private void CloseQaSummaryButton_Click(
+    object sender,
+    RoutedEventArgs e)
+    {
+        QaSummaryPanel.Visibility = Visibility.Collapsed;
+        QaSummaryRow.Height = new GridLength(0);
+    }
+
     private void ExportMutationButton_Click(
     object sender,
     RoutedEventArgs e)
@@ -1265,6 +1332,7 @@ public partial class AbbAnalyzeControl : UserControl
                 ? "Modified files only"
                 : "Entire solution";
             ExportMutationButton.IsEnabled = true;
+            QaSummaryButton.IsEnabled = summary.Survivors.Count > 0;
 
             MutationScoreText.Text =
                 summary.Status;

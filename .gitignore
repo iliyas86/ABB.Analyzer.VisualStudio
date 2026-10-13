@@ -58,6 +58,11 @@ dlldata.c
 # Benchmark Results
 BenchmarkDotNet.Artifacts/
 
+# Published output of the MutationQaSummaryTool helper (net8.0 console app
+# using GitHub.Copilot.SDK). Includes a bundled Copilot CLI binary that
+# exceeds GitHub's file size limits; republish via `dotnet publish` instead.
+/MutationQaSummaryTool/
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json

@@ -8,17 +8,20 @@
     <RootNamespace>ABB.Analyze.VisualStudio</RootNamespace>
     <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
-    <DefaultItemExcludes>$(DefaultItemExcludes);ABB.Analyze.VisualStudio.Tests\**</DefaultItemExcludes>
+    <DefaultItemExcludes>$(DefaultItemExcludes);ABB.Analyze.VisualStudio.Tests\**;Tools\**</DefaultItemExcludes>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Quack\quack.exe" />
+    <None Remove="MutationQaSummaryTool\**\*.*" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Quack\quack.exe" />
+    <Content Include="MutationQaSummaryTool\**\*.*" />
   </ItemGroup>
   <ItemGroup>
     <None Include=".github\copilot-instructions.md" />
+    <None Include="Tools\MutationQaSummaryTool\MutationQaSummaryTool.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectCapability Include="CreateVsixContainer" />

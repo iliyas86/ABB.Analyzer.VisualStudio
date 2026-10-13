@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>MutationQaSummaryTool</AssemblyName>
+    <RootNamespace>MutationQaSummaryTool</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Avoid downloading the Copilot CLI from GitHub releases (blocked on this network);
+         use the CLI already installed locally via npm (@github/copilot). -->
+    <CopilotCliBinaryPath>C:\Users\INMOPAT4\AppData\Roaming\npm\node_modules\@github\copilot\node_modules\@github\copilot-win32-x64\copilot.exe</CopilotCliBinaryPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GitHub.Copilot.SDK" Version="1.0.20" />
+  </ItemGroup>
+
+</Project>

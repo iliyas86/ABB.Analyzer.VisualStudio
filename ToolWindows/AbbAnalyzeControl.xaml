@@ -632,9 +632,11 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="26"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition x:Name="QaSummaryRow" Height="0"/>
                             </Grid.RowDefinitions>
                             <DockPanel Grid.Row="0" Margin="2,0,2,3">
                                 <Button x:Name="ExportMutationButton" DockPanel.Dock="Right" Content="Export CSV" Style="{StaticResource AzureBoardsButtonStyle}" ToolTip="Export mutation summary and surviving mutants as CSV" IsEnabled="False" Click="ExportMutationButton_Click"/>
+                                <Button x:Name="QaSummaryButton" DockPanel.Dock="Right" Content="Summarize QA Impact (Copilot)" Style="{StaticResource AzureBoardsButtonStyle}" Margin="0,0,8,0" ToolTip="Send surviving mutants to GitHub Copilot and summarize missing QA test cases" IsEnabled="False" Click="QaSummaryButton_Click"/>
                                 <ComboBox x:Name="MutationFilterCombo" DockPanel.Dock="Right" Width="130" Margin="8,0,0,0" VerticalAlignment="Center" SelectionChanged="MutationFilterCombo_SelectionChanged">
                                     <ComboBoxItem Content="All" IsSelected="True"/>
                                     <ComboBoxItem Content="Survived"/>
@@ -671,6 +673,17 @@
                                         </DataGridTemplateColumn>
                                     </DataGrid.Columns>
                             </DataGrid>
+                            <Grid x:Name="QaSummaryPanel" Grid.Row="2" Visibility="Collapsed" Margin="2,6,2,2">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                                    <TextBlock Text="Copilot QA Impact Summary" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                    <Button x:Name="CloseQaSummaryButton" DockPanel.Dock="Right" Content="Close" Style="{StaticResource AzureBoardsButtonStyle}" HorizontalAlignment="Right" Click="CloseQaSummaryButton_Click"/>
+                                </DockPanel>
+                                <TextBox x:Name="QaSummaryText" Grid.Row="1" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Background="{StaticResource PanelBackgroundBrush}" Foreground="{StaticResource PrimaryTextBrush}" BorderBrush="{StaticResource ControlBorderBrush}"/>
+                            </Grid>
                         </Grid>
                     </Grid>
                 </TabItem>
